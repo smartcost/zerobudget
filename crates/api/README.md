@@ -15,7 +15,7 @@ docker compose up -d
 AUTH_ALLOW_LOCAL_HTTP=true \
 DATABASE_ADMIN_URL=postgres://zerobudget_admin:app-admin-dev-password@127.0.0.1:5440/zerobudget \
 DATABASE_RUNTIME_ROLE=zerobudget_runtime \
-cargo run -p obz-infrastructure --example auth_admin -- migrate
+cargo run -p obz-api --example migrate
 
 set -a
 . ./.env.example
@@ -202,3 +202,10 @@ de validação. O PostgreSQL dedicado da aplicação é publicado em loopback na
 não migra o banco nem usa a credencial administrativa. Depois de preparado, a
 indisponibilidade do banco retorna 503 nas rotas protegidas, sem fallback para
 memória. Logout continua disponível com sessão/CSRF válidos, sem depender do banco.
+
+## Envelopes
+
+Consulte [envelopes e alocação](../../docs/envelopes.md) para as rotas de criação,
+listagem, alteração e remoção, a migração e o roteiro manual. Os totais dos ciclos
+agora refletem a distribuição persistida. A preparação completa usa a migração
+do exemplo `migrate` do crate `obz-api`, incluindo os privilégios de envelopes.

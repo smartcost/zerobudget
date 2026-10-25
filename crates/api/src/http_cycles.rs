@@ -41,8 +41,8 @@ impl From<BudgetCycle> for CycleResponse {
             period_start: c.period_start,
             period_end: c.period_end,
             income_cents: c.income_cents,
-            allocated_cents: 0,
-            available_cents: c.income_cents,
+            allocated_cents: c.allocated_cents,
+            available_cents: c.available_cents,
             currency: "BRL",
             status: "planned",
         }
@@ -51,12 +51,16 @@ impl From<BudgetCycle> for CycleResponse {
 impl From<CycleError> for ApiError {
     fn from(e: CycleError) -> Self {
         match e {
-            CycleError::Invalid => Self(
-                StatusCode::UNPROCESSABLE_ENTITY,
-                "invalid budget period or amount",
+            CycleError::Invalid => Self(StatusCode::UNPROCESSABLE_ENTITY, "invalid budget input"),
+            CycleError::DuplicateEnvelope => Self(
+                StatusCode::CONFLICT,
+                "envelope name already exists in this cycle",
             ),
+            CycleError::Overallocated => {
+                Self(StatusCode::CONFLICT, "allocation exceeds cycle income")
+            }
             CycleError::Forbidden => Self(StatusCode::FORBIDDEN, "permission denied"),
-            CycleError::NotFound => Self(StatusCode::NOT_FOUND, "cycle not found"),
+            CycleError::NotFound => Self(StatusCode::NOT_FOUND, "budget resource not found"),
             CycleError::Conflict => {
                 Self(StatusCode::CONFLICT, "cycle already exists for this period")
             }

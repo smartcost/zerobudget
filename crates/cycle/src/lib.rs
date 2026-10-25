@@ -8,14 +8,18 @@ use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CycleError {
-    #[error("invalid budget period or amount")]
+    #[error("invalid budget input")]
     Invalid,
     #[error("permission denied")]
     Forbidden,
-    #[error("cycle not found")]
+    #[error("budget resource not found")]
     NotFound,
     #[error("cycle already exists for this period")]
     Conflict,
+    #[error("envelope name already exists in this cycle")]
+    DuplicateEnvelope,
+    #[error("allocation exceeds cycle income")]
+    Overallocated,
     #[error("budget storage unavailable")]
     Unavailable,
 }
@@ -25,6 +29,8 @@ pub struct BudgetCycle {
     pub period_start: NaiveDate,
     pub period_end: NaiveDate,
     pub income_cents: i64,
+    pub allocated_cents: i64,
+    pub available_cents: i64,
 }
 
 /// Persistence port. Implementations must scope every operation to the supplied owner.
@@ -68,6 +74,8 @@ impl CycleService {
                     period_start: start,
                     period_end: end,
                     income_cents: cycle.income_cents(),
+                    allocated_cents: 0,
+                    available_cents: cycle.available_cents(),
                 },
             )
             .await
@@ -96,3 +104,6 @@ impl CycleService {
             .ok_or(CycleError::NotFound)
     }
 }
+
+mod envelope;
+pub use envelope::{BudgetEnvelope, EnvelopePatch, EnvelopeRepository, EnvelopeService};

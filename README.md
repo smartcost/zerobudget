@@ -12,3 +12,5 @@ Aplicação Rust de gestão financeira pessoal com orçamento base zero.
 - [Identidades locais e permissões persistentes](docs/identidades-e-permissoes.md)
 
 Ciclos de orçamento: [contrato, migração e testes](docs/ciclos-planejados.md).
+
+Envelopes: [regras, API e roteiro de teste](docs/envelopes.md).

@@ -1,6 +1,8 @@
 use crate::Database;
 use async_trait::async_trait;
 use obz_cycle::{BudgetCycle, CycleError, CycleRepository};
+use obz_domain::envelope::Allocation;
+use obz_domain::money::Money;
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -40,13 +42,7 @@ impl PostgresCycleRepository {
         tokio::time::timeout(self.database.timeout(), work)
             .await
             .map_err(|_| CycleError::Unavailable)?
-            .map_err(
-                |error| match error.as_database_error().and_then(|e| e.code()).as_deref() {
-                    Some("23505") => CycleError::Conflict,
-                    Some("42501") => CycleError::Forbidden,
-                    _ => CycleError::Unavailable,
-                },
-            )
+            .map_err(crate::postgres_envelope::sql_error)
     }
 }
 #[async_trait]
@@ -70,8 +66,13 @@ impl CycleRepository for PostgresCycleRepository {
         self.bounded(async {
             let mut tx=self.database.pool().begin().await?;
             sqlx::query("SELECT set_config('zerobudget.user_id',$1,true)").bind(owner.to_string()).execute(&mut *tx).await?;
-            let rows=sqlx::query("SELECT id,period_start,period_end,income_cents FROM budgeting.cycles WHERE owner_id=$1 AND ($2::uuid IS NULL OR id=$2) ORDER BY period_start DESC,id DESC LIMIT $3 OFFSET $4").bind(owner).bind(id).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
-            let records=rows.into_iter().map(|row|Ok(BudgetCycle{id:row.try_get("id")?,period_start:row.try_get("period_start")?,period_end:row.try_get("period_end")?,income_cents:row.try_get("income_cents")?})).collect::<Result<Vec<_>,sqlx::Error>>()?;
+            let rows=sqlx::query("SELECT c.id,c.period_start,c.period_end,c.income_cents, (SELECT COALESCE(sum(e.allocated_cents),0)::bigint FROM budgeting.envelopes e WHERE e.cycle_id=c.id AND e.owner_id=c.owner_id) AS allocated_cents FROM budgeting.cycles c WHERE c.owner_id=$1 AND ($2::uuid IS NULL OR id=$2) ORDER BY period_start DESC,id DESC LIMIT $3 OFFSET $4").bind(owner).bind(id).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
+            let records=rows.into_iter().map(|row| {
+                let income:i64=row.try_get("income_cents")?;
+                let allocated:i64=row.try_get("allocated_cents")?;
+                let balance=Allocation::new(Money::from_cents(income).map_err(|_|sqlx::Error::Protocol("invalid cycle income".into()))?,Money::from_cents(allocated).map_err(|_|sqlx::Error::Protocol("invalid allocation".into()))?).map_err(|_|sqlx::Error::Protocol("invalid cycle balance".into()))?;
+                Ok(BudgetCycle{id:row.try_get("id")?,period_start:row.try_get("period_start")?,period_end:row.try_get("period_end")?,income_cents:income,allocated_cents:balance.allocated().to_cents(),available_cents:balance.available().to_cents()})
+            }).collect::<Result<Vec<_>,sqlx::Error>>()?;
             tx.commit().await?;
             Ok(records)
         }).await

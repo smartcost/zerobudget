@@ -16,6 +16,7 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub(crate) envelopes: Option<obz_cycle::EnvelopeService>,
     pub(crate) cycles: Option<obz_cycle::CycleService>,
     auth: Arc<RwLock<Arc<DexAuth>>>,
     store: Arc<dyn SessionStore>,
@@ -33,12 +34,17 @@ impl AppState {
     ) -> Self {
         Self {
             cycles: None,
+            envelopes: None,
             auth: Arc::new(RwLock::new(Arc::new(auth))),
             store,
             users,
             origin: origin.into(),
             secure: secure_cookies,
         }
+    }
+    pub fn with_envelopes(mut self, envelopes: obz_cycle::EnvelopeService) -> Self {
+        self.envelopes = Some(envelopes);
+        self
     }
     pub fn with_cycles(mut self, cycles: obz_cycle::CycleService) -> Self {
         self.cycles = Some(cycles);
@@ -87,6 +93,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/me", get(me))
         .route("/api/auth/logout", post(logout))
         .merge(crate::http_cycles::routes())
+        .merge(crate::http_envelopes::routes())
         .with_state(state)
         .layer(middleware::from_fn(security_headers))
 }
@@ -1316,6 +1323,10 @@ mod tests {
             .grant_runtime_role(&db.runtime_role)
             .await
             .unwrap();
+        obz_infrastructure::PostgresEnvelopeRepository::new(owner_db.clone())
+            .grant_runtime_role(&db.runtime_role)
+            .await
+            .unwrap();
         let mut config = obz_infrastructure::DatabaseConfig::new(db.runtime_url.clone(), true);
         config.max_connections = 1;
         let runtime = obz_infrastructure::Database::connect(config).await.unwrap();
@@ -1584,5 +1595,8 @@ mod tests {
     }
     mod postgres_identity_tests {
         include!("postgres_identity_tests.rs");
+    }
+    mod envelope_tests {
+        include!("envelope_tests.rs");
     }
 }

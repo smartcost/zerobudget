@@ -1,6 +1,8 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DomainError {
     InvalidAmount,
+    AmountOverflow,
+    InvalidEnvelopeName,
     InvalidPeriod,
     InvalidCycleStatus,
     EnvelopeNotFound,
@@ -11,8 +13,10 @@ pub enum DomainError {
 impl std::fmt::Display for DomainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            DomainError::AmountOverflow => write!(f, "Amount overflow"),
+            DomainError::InvalidEnvelopeName => write!(f, "Invalid envelope name"),
             DomainError::InvalidPeriod => write!(f, "Invalid budget period"),
-            DomainError::InvalidAmount => write!(f, "Amount must be positive"),
+            DomainError::InvalidAmount => write!(f, "Amount must be non-negative"),
             DomainError::InvalidCycleStatus => write!(f, "Invalid cycle status"),
             DomainError::EnvelopeNotFound => write!(f, "Envelope not found"),
             DomainError::EnvelopeOverbudget => write!(f, "Envelope would exceed budget"),
@@ -30,7 +34,7 @@ mod tests {
     #[test]
     fn test_domain_error_display() {
         let err = DomainError::InvalidAmount;
-        assert_eq!(err.to_string(), "Amount must be positive");
+        assert_eq!(err.to_string(), "Amount must be non-negative");
     }
 
     #[test]

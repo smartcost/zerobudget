@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+obz-domain = { path = "../domain" }
 obz-cycle = { path = "../cycle" }
 obz-auth = { path = "../auth" }
 async-trait = "0.1"
@@ -12,3 +13,6 @@ sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio
 tokio = { version = "1", features = ["time"] }
 url = "2"
 thiserror = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

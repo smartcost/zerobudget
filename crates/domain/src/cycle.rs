@@ -1,5 +1,5 @@
 //! Planned budget rules; dates are ordinal days in the proleptic Gregorian calendar.
-use crate::{errors::DomainError, money::Money};
+use crate::{envelope::Allocation, errors::DomainError, money::Money};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BudgetPeriod {
@@ -25,12 +25,22 @@ impl BudgetPeriod {
 pub struct Cycle {
     period: BudgetPeriod,
     income: Money,
+    allocation: Allocation,
 }
 impl Cycle {
     pub fn plan(period: BudgetPeriod, income_cents: i64) -> Result<Self, DomainError> {
+        Self::restore(period, income_cents, 0)
+    }
+    pub fn restore(
+        period: BudgetPeriod,
+        income_cents: i64,
+        allocated_cents: i64,
+    ) -> Result<Self, DomainError> {
+        let income = Money::from_cents(income_cents)?;
         Ok(Self {
             period,
-            income: Money::from_cents(income_cents)?,
+            income,
+            allocation: Allocation::new(income, Money::from_cents(allocated_cents)?)?,
         })
     }
     pub fn period(&self) -> BudgetPeriod {
@@ -40,10 +50,10 @@ impl Cycle {
         self.income.to_cents()
     }
     pub fn allocated_cents(&self) -> i64 {
-        0
+        self.allocation.allocated().to_cents()
     }
     pub fn available_cents(&self) -> i64 {
-        self.income.to_cents()
+        self.allocation.available().to_cents()
     }
 }
 #[cfg(test)]
@@ -59,6 +69,15 @@ mod tests {
             assert_eq!(cycle.available_cents(), amount);
         }
         assert!(Cycle::plan(period, -1).is_err());
+    }
+    #[test]
+    fn restored_totals_preserve_budget_invariants() {
+        let period = BudgetPeriod::new(1, 32).unwrap();
+        let cycle = Cycle::restore(period, 1000, 600).unwrap();
+        assert_eq!(cycle.allocated_cents(), 600);
+        assert_eq!(cycle.available_cents(), 400);
+        assert!(Cycle::restore(period, 1000, 1001).is_err());
+        assert!(Cycle::restore(period, 1000, -1).is_err());
     }
     #[test]
     fn period_requires_ordered_supported_dates() {

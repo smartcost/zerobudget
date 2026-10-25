@@ -1452,6 +1452,7 @@ dependencies = [
  "async-trait",
  "obz-auth",
  "obz-cycle",
+ "obz-domain",
  "sqlx",
  "thiserror 2.0.21",
  "tokio",

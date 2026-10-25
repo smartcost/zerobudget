@@ -1,9 +1,10 @@
 # Ciclos planejados
 
-Esta etapa cria, lista e consulta ciclos de orçamento em BRL. Não ativa ciclos,
-cria envelopes nem registra movimentações. A renda é um inteiro de centavos
+Esta etapa cria, lista e consulta ciclos de orçamento em BRL. Não ativa ciclos nem
+registra movimentações. A distribuição por envelopes é descrita em
+[envelopes e alocação](envelopes.md). A renda é um inteiro de centavos
 não negativo; inicialmente o valor alocado é zero e todo o saldo está disponível.
-O domínio usa o tipo Money existente sem executar sua aritmética não verificada.
+O domínio usa `Money` com aritmética verificada.
 
 ## Preparar o banco
 
@@ -52,8 +53,9 @@ rejeitados. O proprietário vem exclusivamente da identidade autenticada.
 Repetir exatamente o período para o mesmo proprietário retorna 409. Períodos
 sobrepostos diferentes são permitidos nesta fase de planejamento.
 
-A resposta inclui id, period_start, period_end, income_cents, allocated_cents=0,
-available_cents=income_cents, currency=BRL e status=planned. A lista é um array,
+A resposta inclui id, period_start, period_end, income_cents, allocated_cents,
+available_cents, currency=BRL e status=planned. Na criação, alocado é zero e
+disponível é igual à renda. Nas consultas, os totais refletem os envelopes. A lista é um array,
 ordenado por início e UUID decrescentes; limit aceita 1 a 100 e offset até 100000.
 A paginação por offset pode mudar quando outros ciclos são criados entre consultas.
 
@@ -79,7 +81,7 @@ filtro, tentativa de proprietário falso e reutilização da conexão.
 ## Organização do código
 
 - `obz-domain`: entidades e invariantes financeiras, sem dependências externas.
-- `obz-cycle`: `CycleService`, autorização dos casos de uso, validação e contrato
+- `obz-cycle`: `CycleService`, `EnvelopeService`, autorização, validação e contrato
   assíncrono `CycleRepository`. Não importa SQLx, conexão ou migrações.
 - `obz-infrastructure`: `PostgresCycleRepository`, conversão das linhas SQL,
   transações com contexto RLS, verificação do schema e privilégios administrativos.
