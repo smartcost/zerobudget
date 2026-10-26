@@ -209,3 +209,11 @@ Consulte [envelopes e alocação](../../docs/envelopes.md) para as rotas de cria
 listagem, alteração e remoção, a migração e o roteiro manual. Os totais dos ciclos
 agora refletem a distribuição persistida. A preparação completa usa a migração
 do exemplo `migrate` do crate `obz-api`, incluindo os privilégios de envelopes.
+
+## Documentação HTTP e Postman
+
+O [diretório da API](../../docs/api/README.md) contém o contrato OpenAPI, coleção
+Postman, ambiente local e roteiro para testar a API sem código no console.
+
+Para a regressão completa sem cópia de cookies, use `./scripts/e2e test`.
+Consulte o [guia Playwright E2E/MCP](../../docs/api/e2e.md).

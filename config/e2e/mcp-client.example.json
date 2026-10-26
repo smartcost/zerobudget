@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "zerobudget-playwright": {
+      "command": "/CAMINHO_ABSOLUTO_DO_REPOSITORIO/scripts/e2e",
+      "args": ["mcp"]
+    }
+  }
+}

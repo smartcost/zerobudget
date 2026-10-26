@@ -1,0 +1,1331 @@
+{
+  "info": {
+    "name": "ZeroBudget — API local",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Importe também o ambiente local. Login pelo navegador + cookie jar; sem bearer. Consulte docs/api/README.md. Execute somente a pasta 02 no Runner para validar envelopes em um ciclo existente e limpar os dados criados. Não execute a coleção inteira: a pasta 01 altera dados manualmente e 03 encerra a sessão. O cookie fica no cookie jar do Postman; o ambiente exportado contém valores vazios para dados de sessão. Não use o assistente OAuth2 para obter bearer."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "protocolProfileBehavior": {
+    "followRedirects": false
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const base = pm.environment.get('base_url');",
+          "if (!/^https?:\\/\\/[^/?#]+(?::[0-9]+)?$/.test(base || '')) throw new Error('Selecione o ambiente e configure base_url como origem, sem barra final.');"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Operações manuais",
+      "description": "Envie operações individuais. Criar ciclo exige datas configuradas e grava dados persistentes; não existe DELETE de ciclos. IDs retornados ficam no ambiente.",
+      "item": [
+        {
+          "name": "Saúde",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.expect(pm.response.code).to.eql(204); });",
+                  "if (pm.response.code !== 204) {  } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar sessão",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.unset('csrf_token');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) {  } else {",
+                  "const session = pm.response.json();",
+                  "pm.test('Sessão contém identidade e CSRF', function () {",
+                  "  pm.expect(session.user_id).to.be.a('string');",
+                  "  pm.expect(session.csrf_token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.environment.set('csrf_token', session.csrf_token);",
+                  "pm.environment.set('user_id', session.user_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar ciclo planejado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"period_start\": \"{{period_start}}\",\n  \"period_end\": \"{{period_end}}\",\n  \"income_cents\": {{income_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Execute Consultar sessão para obter CSRF antes de alterar dados.');"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('period_start') || !pm.environment.get('period_end')) throw new Error('Defina period_start e period_end no ambiente; criação de ciclo é persistente.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code !== 201) {  } else {",
+                  "const cycle = pm.response.json(); pm.environment.set('cycle_id', cycle.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar ciclos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles?limit=20&offset=0",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) {  } else {",
+                  "pm.test('Lista de ciclos', function () { pm.expect(pm.response.json()).to.be.an('array'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar ciclo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) {  } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar envelope",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"{{envelope_name}}\",\"allocated_cents\":{{envelope_amount_cents}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Execute Consultar sessão para obter CSRF antes de alterar dados.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code !== 201) {  } else {",
+                  "pm.environment.set('envelope_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar envelopes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes?limit=20&offset=0",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) {  } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alterar envelope",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{envelope_id}}",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"{{envelope_name}}\",\"allocated_cents\":{{envelope_amount_cents}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Execute Consultar sessão para obter CSRF antes de alterar dados.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) {  } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remover envelope",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{envelope_id}}",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Execute Consultar sessão para obter CSRF antes de alterar dados.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.expect(pm.response.code).to.eql(204); });",
+                  "if (pm.response.code !== 204) {  } else {",
+                  "pm.environment.unset('envelope_id');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Validar envelopes (Runner)",
+      "description": "Execute esta pasta completa, uma iteração, com cookie de sessão, permissões e cycle_id de teste. Não faça outras edições no ciclo. IDs confirmados são limpos no fim; falhas HTTP redirecionam à limpeza. Erros de transporte ou interrupção do Runner podem exigir limpeza manual.",
+      "item": [
+        {
+          "name": "PM - Consultar sessão",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/auth/me",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (JSON.parse(pm.environment.get('test_created_ids') || '[]').length || pm.environment.get('test_envelope_a_id') || pm.environment.get('test_envelope_b_id')) {",
+                  "  pm.execution.setNextRequest(null);",
+                  "  throw new Error('Há envelopes de teste pendentes. Execute PM - Limpar envelopes de teste e B antes de reiniciar.');",
+                  "}",
+                  "if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pm.environment.get('cycle_id') || '')) {",
+                  "  pm.execution.setNextRequest(null); throw new Error('Defina cycle_id com um ciclo próprio e saldo disponível.');",
+                  "}",
+                  "pm.environment.unset('csrf_token');",
+                  "pm.environment.unset('test_initial_allocated');",
+                  "pm.environment.set('test_run_id', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "const session = pm.response.json();",
+                  "pm.test('Sessão contém identidade e CSRF', function () {",
+                  "  pm.expect(session.user_id).to.be.a('string');",
+                  "  pm.expect(session.csrf_token).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.environment.set('csrf_token', session.csrf_token);",
+                  "pm.environment.set('user_id', session.user_id);",
+                  "const allowed = ['budget:read','budget:write'].every(p => session.permissions.includes(p));",
+                  "pm.test('Permissões de leitura e escrita', function () { pm.expect(allowed).to.eql(true); });",
+                  "if (!allowed) pm.execution.setNextRequest(null);",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Saldo inicial",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "const cycle = pm.response.json();",
+                  "const valid = cycle.status === 'planned' && [cycle.income_cents, cycle.allocated_cents, cycle.available_cents].every(n => Number.isSafeInteger(n) && n >= 0) && cycle.available_cents >= 2 && cycle.allocated_cents + cycle.available_cents === cycle.income_cents;",
+                  "pm.test('Ciclo planejado com valores seguros e saldo de pelo menos 2 centavos', function () { pm.expect(valid).to.eql(true); });",
+                  "if (!valid) { pm.execution.setNextRequest(null); } else {",
+                  "  pm.environment.set('test_initial_allocated', String(cycle.allocated_cents));",
+                  "  pm.environment.set('test_initial_available', String(cycle.available_cents));",
+                  "  pm.environment.set('test_income', String(cycle.income_cents));",
+                  "  pm.environment.set('test_amount_a', String(Math.floor(cycle.available_cents / 2)));",
+                  "  pm.environment.set('test_amount_b', String(cycle.available_cents - Math.floor(cycle.available_cents / 2)));",
+                  "  pm.environment.set('test_excess_a', String(Math.floor(cycle.available_cents / 2) + 1));",
+                  "}",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Criar envelope A",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Postman-{{test_run_id}}-A\",\"allocated_cents\":{{test_amount_a}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code !== 201) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "pm.environment.set('test_envelope_a_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Criar envelope B",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Postman-{{test_run_id}}-B\",\"allocated_cents\":{{test_amount_b}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code !== 201) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "pm.environment.set('test_envelope_b_id', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Renda totalmente distribuída",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "const cycle = pm.response.json();",
+                  "const valid = cycle.allocated_cents === (Number(pm.environment.get('test_income'))) && cycle.available_cents === (0);",
+                  "pm.test('Totais do ciclo', function () { pm.expect(valid).to.eql(true); });",
+                  "if (!valid) pm.execution.setNextRequest('PM - Limpar envelopes de teste');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Listar envelopes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes?limit=100&offset=0",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "pm.test('Lista de envelopes', function () { pm.expect(pm.response.json()).to.be.an('array'); });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar excesso",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Postman-{{test_run_id}}-Excesso\",\"allocated_cents\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.expect(pm.response.code).to.eql(409); });",
+                  "if (pm.response.code !== 409) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar duplicidade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Postman-{{test_run_id}}-A\",\"allocated_cents\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.expect(pm.response.code).to.eql(409); });",
+                  "if (pm.response.code !== 409) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar valor negativo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Postman-{{test_run_id}}-Negativo\",\"allocated_cents\":-1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.expect(pm.response.code).to.eql(422); });",
+                  "if (pm.response.code !== 422) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar nome vazio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \" \",\n  \"allocated_cents\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.expect(pm.response.code).to.eql(422); });",
+                  "if (pm.response.code !== 422) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar proprietário no corpo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Postman-{{test_run_id}}-Proprietario\",\"allocated_cents\":0,\"owner_id\":\"{{user_id}}\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.expect(pm.response.code).to.eql(422); });",
+                  "if (pm.response.code !== 422) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Exigir CSRF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"Postman-{{test_run_id}}-CSRF\",\"allocated_cents\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', function () { pm.expect(pm.response.code).to.eql(403); });",
+                  "if (pm.response.code !== 403) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar PATCH vazio",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_a_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.expect(pm.response.code).to.eql(422); });",
+                  "if (pm.response.code !== 422) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar PATCH null",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_a_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allocated_cents\": null\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 422', function () { pm.expect(pm.response.code).to.eql(422); });",
+                  "if (pm.response.code !== 422) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Reduzir alocação",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_a_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allocated_cents\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Saldo após redução",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "const cycle = pm.response.json();",
+                  "const valid = cycle.allocated_cents === (Number(pm.environment.get('test_income')) - Number(pm.environment.get('test_amount_a'))) && cycle.available_cents === (Number(pm.environment.get('test_amount_a')));",
+                  "pm.test('Totais do ciclo', function () { pm.expect(valid).to.eql(true); });",
+                  "if (!valid) pm.execution.setNextRequest('PM - Limpar envelopes de teste');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar aumento acima da renda",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_a_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"allocated_cents\":{{test_excess_a}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.expect(pm.response.code).to.eql(409); });",
+                  "if (pm.response.code !== 409) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Recusar nome duplicado no PATCH",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_a_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman-{{test_run_id}}-B\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', function () { pm.expect(pm.response.code).to.eql(409); });",
+                  "if (pm.response.code !== 409) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Renomear envelope",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_a_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman-{{test_run_id}}-Renomeado\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Remover envelope B",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_b_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.expect(pm.response.code).to.eql(204); });",
+                  "if (pm.response.code !== 204) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "pm.environment.unset('test_envelope_b_id');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Saldo após remoção",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "const cycle = pm.response.json();",
+                  "const valid = cycle.allocated_cents === (Number(pm.environment.get('test_initial_allocated'))) && cycle.available_cents === (Number(pm.environment.get('test_initial_available')));",
+                  "pm.test('Totais do ciclo', function () { pm.expect(valid).to.eql(true); });",
+                  "if (!valid) pm.execution.setNextRequest('PM - Limpar envelopes de teste');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Reaplicar alocação",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_envelope_a_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"allocated_cents\":{{test_amount_a}}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code !== 200) { pm.execution.setNextRequest(\"PM - Limpar envelopes de teste\"); } else {",
+                  "",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Limpar envelopes de teste",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{test_cleanup_id}}",
+            "description": "Executar também manualmente para recuperar um teste interrompido. No Runner repete para cada ID registrado pela execução. Nunca apaga envelopes preexistentes."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ids = JSON.parse(pm.environment.get('test_created_ids') || '[]');",
+                  "if (!ids.length) { pm.execution.skipRequest(); } else {",
+                  "  pm.variables.set('test_cleanup_id', ids[0]);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Limpeza: HTTP 204 ou 404', function () { pm.expect([204,404]).to.include(pm.response.code); });",
+                  "if ([204,404].includes(pm.response.code)) {",
+                  "  const ids = JSON.parse(pm.environment.get('test_created_ids') || '[]');",
+                  "  if (ids.length) pm.execution.setNextRequest('PM - Limpar envelopes de teste');",
+                  "} else {",
+                  "  pm.execution.setNextRequest('PM - Saldo original restaurado');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PM - Saldo original restaurado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}",
+            "description": "Execute dentro da pasta de validação, na ordem."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('test_initial_allocated')) pm.execution.skipRequest();"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code === 200) {",
+                  "  const cycle = pm.response.json();",
+                  "  pm.test('Saldo original restaurado', function () {",
+                  "    pm.expect(cycle.allocated_cents).to.eql(Number(pm.environment.get('test_initial_allocated')));",
+                  "    pm.expect(cycle.available_cents).to.eql(Number(pm.environment.get('test_initial_available')));",
+                  "  });",
+                  "}",
+                  "pm.test('Nenhum envelope de teste pendente', function () {",
+                  "  pm.expect(Boolean(JSON.parse(pm.environment.get('test_created_ids') || '[]').length || pm.environment.get('test_envelope_a_id') || pm.environment.get('test_envelope_b_id'))).to.eql(false);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.request.method === 'POST' && pm.response.code === 201) {",
+              "  const id = pm.response.json().id;",
+              "  if (typeof id === 'string') {",
+              "    const ids = JSON.parse(pm.environment.get('test_created_ids') || '[]');",
+              "    if (!ids.includes(id)) ids.push(id);",
+              "    pm.environment.set('test_created_ids', JSON.stringify(ids));",
+              "  }",
+              "}",
+              "if (pm.request.method === 'DELETE' && [204,404].includes(pm.response.code)) {",
+              "  const id = pm.variables.replaceIn(pm.request.url.toString()).split('/').pop();",
+              "  const ids = JSON.parse(pm.environment.get('test_created_ids') || '[]').filter(value => value !== id);",
+              "  pm.environment.set('test_created_ids', JSON.stringify(ids));",
+              "  for (const key of ['test_envelope_a_id','test_envelope_b_id']) {",
+              "    if (pm.environment.get(key) === id) pm.environment.unset(key);",
+              "  }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Encerrar sessão (manual)",
+      "description": "Não inclui no Runner de validação. Revoga a mesma sessão que foi sincronizada do navegador.",
+      "item": [
+        {
+          "name": "Sair (revoga também a sessão sincronizada do navegador)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/auth/logout",
+            "description": "Operação manual. Selecione o ambiente local e execute Consultar sessão antes das mutações."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', function () { pm.expect(pm.response.code).to.eql(204); });",
+                  "if (pm.response.code !== 204) {  } else {",
+                  "pm.environment.unset('csrf_token'); pm.environment.unset('user_id');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

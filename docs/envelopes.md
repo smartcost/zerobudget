@@ -1,5 +1,9 @@
 # Envelopes e distribuição da renda
 
+Para regressão com login automático, use [Playwright E2E](api/e2e.md).
+Para exploração manual, há também a [coleção Postman e seu guia](api/README.md).
+O roteiro de console abaixo permanece como alternativa.
+
 Um envelope representa uma finalidade para o dinheiro de um ciclo: moradia,
 alimentação ou reserva, por exemplo. Ele não representa uma conta bancária.
 Esta etapa permite planejar a distribuição; não registra gastos nem ativa ciclos.

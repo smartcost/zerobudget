@@ -92,6 +92,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 - Testes HTTP usam um provedor OIDC temporário e abrem portas em loopback.
+- A regressão E2E usa `./scripts/e2e test`: Dex real, navegador e API com serviços
+  descartáveis exclusivos. O guia é `docs/api/e2e.md`. Não use o banco local para
+  preparar usuários E2E; não faça bypass de login ou CSRF. Playwright MCP usa
+  `./scripts/e2e up` e o launcher `./scripts/e2e mcp`; a prova é `mcp-check`.
+- Não publique `.runs`, estados de autenticação ou relatórios HTML privados. No CI,
+  publique somente o JUnit sanitizado.
 - Testes ignorados de integração exigem Redis/PostgreSQL locais e as variáveis
   `AUTH_TEST_DATABASE_URL`, `AUTH_TEST_RUNTIME_DATABASE_URL` e
   `AUTH_TEST_REDIS_URL`. Execute-os com
@@ -110,6 +116,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 - Comunique-se em português e siga o estilo de nomes do código existente.
 - Preserve alterações do usuário. Evite mudanças amplas, novas dependências e
   abstrações sem necessidade concreta para a tarefa.
+- O contrato HTTP e os artefatos Postman ficam em `docs/api/`. Ao alterar rotas,
+  mantenha `openapi.json`, coleção e ambiente consistentes, sem dados de sessão.
 - Atualize documentação quando alterar contratos HTTP, comandos, configuração ou
   responsabilidades dos crates. Exemplos devem indicar claramente os parâmetros
   a substituir; não apresente `...` como um comando pronto para executar.

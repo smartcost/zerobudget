@@ -1,0 +1,20 @@
+# Generated into the run directory; never used by the development stack.
+issuer: http://localhost:__DEX_PORT__
+storage:
+  type: sqlite3
+  config:
+    file: /tmp/zerobudget-e2e.db
+web:
+  http: 0.0.0.0:5556
+oauth2:
+  responseTypes: [code]
+  skipApprovalScreen: false
+  alwaysShowLoginScreen: true
+enablePasswordDB: true
+staticClients:
+  - id: zerobudget-e2e
+    name: ZeroBudget E2E
+    secret: e2e-client-secret
+    redirectURIs: ["http://localhost:__API_PORT__/api/auth/callback"]
+staticPasswords:
+# __USERS__

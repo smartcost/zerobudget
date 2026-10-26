@@ -14,3 +14,7 @@ Aplicação Rust de gestão financeira pessoal com orçamento base zero.
 Ciclos de orçamento: [contrato, migração e testes](docs/ciclos-planejados.md).
 
 Envelopes: [regras, API e roteiro de teste](docs/envelopes.md).
+
+- [Contrato da API e coleção Postman](docs/api/README.md)
+
+- [E2E com login Dex automático e Playwright MCP](docs/api/e2e.md): `./scripts/e2e test`

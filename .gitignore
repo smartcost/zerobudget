@@ -33,3 +33,10 @@ go.work.sum
 
 # Rust build artifacts
 /target/
+
+# Isolated E2E tooling, browser binaries, local sessions and reports
+/tests/e2e/node_modules/
+/tests/e2e/.cache/
+/tests/e2e/.runs/
+/tests/e2e/test-results/
+/tests/e2e/playwright-report/

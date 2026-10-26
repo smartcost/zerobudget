@@ -1,0 +1,1108 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ZeroBudget API",
+    "version": "0.1.0",
+    "description": "Contrato do backend implementado. Sessão do servidor após login OIDC no Dex; permissões explícitas e isolamento por proprietário. Valores financeiros em centavos. Rotas HTML e assets de /auth/session são auxiliares e não fazem parte deste contrato JSON."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Desenvolvimento local"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Saúde"
+    },
+    {
+      "name": "Autenticação"
+    },
+    {
+      "name": "Ciclos"
+    },
+    {
+      "name": "Envelopes"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Liveness: confirma que o processo HTTP responde",
+        "tags": [
+          "Saúde"
+        ],
+        "security": [],
+        "responses": {
+          "204": {
+            "description": "API responde; não verifica prontidão de Redis, Dex ou PostgreSQL."
+          }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "operationId": "getSession",
+        "summary": "Consultar sessão e permissões atuais",
+        "tags": [
+          "Autenticação"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar sessão e permissões atuais",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "summary": "Revogar sessão e remover cookie",
+        "tags": [
+          "Autenticação"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revogar sessão e remover cookie"
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "description": "Exige sessão e CSRF; não encerra SSO no Dex. Não depende da disponibilidade do PostgreSQL."
+      }
+    },
+    "/api/auth/login": {
+      "get": {
+        "operationId": "beginLogin",
+        "summary": "Iniciar login no navegador pelo Dex",
+        "tags": [
+          "Autenticação"
+        ],
+        "security": [],
+        "responses": {
+          "303": {
+            "description": "Redireciona ao Dex e define cookie temporário de login. Continuar no mesmo navegador.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        }
+      }
+    },
+    "/api/auth/callback": {
+      "get": {
+        "operationId": "finishLogin",
+        "summary": "Callback OIDC, exclusivo do fluxo iniciado no navegador",
+        "tags": [
+          "Autenticação"
+        ],
+        "security": [],
+        "responses": {
+          "303": {
+            "description": "Callback OIDC, exclusivo do fluxo iniciado no navegador",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "example": "/auth/session"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          }
+        },
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "description": "Exige cookie temporário de login correspondente. State, código e tentativa são de uso único. Não chamar manualmente, nem copiar URLs de retorno ou códigos para a coleção."
+      }
+    },
+    "/api/cycles": {
+      "post": {
+        "operationId": "createCycle",
+        "summary": "Criar ciclo planejado",
+        "tags": [
+          "Ciclos"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Criar ciclo planejado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        },
+        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada. Datas estritas YYYY-MM-DD, anos 0001 a 9999; fim exclusivo posterior ao início. Períodos idênticos do mesmo proprietário retornam 409. Períodos diferentes sobrepostos são permitidos.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCycle"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listCycles",
+        "summary": "Listar os próprios ciclos",
+        "tags": [
+          "Ciclos"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listar os próprios ciclos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Cycle"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        },
+        "description": "Exige budget:read. Proprietário determinado pela sessão autenticada. Ordem: period_start DESC, id DESC. Totais refletem os envelopes, não apenas a página deles.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/api/cycles/{cycle_id}": {
+      "get": {
+        "operationId": "getCycle",
+        "summary": "Consultar ciclo e totais",
+        "tags": [
+          "Ciclos"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar ciclo e totais",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        },
+        "description": "Exige budget:read. Proprietário determinado pela sessão autenticada."
+      },
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "/api/cycles/{cycle_id}/envelopes": {
+      "post": {
+        "operationId": "createEnvelope",
+        "summary": "Criar envelope",
+        "tags": [
+          "Envelopes"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Criar envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        },
+        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEnvelope"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listEnvelopes",
+        "summary": "Listar envelopes do ciclo",
+        "tags": [
+          "Envelopes"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listar envelopes do ciclo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Envelope"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        },
+        "description": "Exige budget:read. Proprietário determinado pela sessão autenticada. Ordem por UUID crescente. Paginação por offset pode mudar entre consultas concorrentes.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    },
+    "/api/cycles/{cycle_id}/envelopes/{envelope_id}": {
+      "patch": {
+        "operationId": "updateEnvelope",
+        "summary": "Alterar nome ou alocação do envelope",
+        "tags": [
+          "Envelopes"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Alterar nome ou alocação do envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          }
+        },
+        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada. Ao menos um campo. Omitido preserva o valor; null é inválido. Reduções liberam saldo. A soma não pode exceder a renda, inclusive sob concorrência.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchEnvelope"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteEnvelope",
+        "summary": "Remover envelope e liberar sua alocação",
+        "tags": [
+          "Envelopes"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Remover envelope e liberar sua alocação"
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          }
+        },
+        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "envelope_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ]
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "budget:read",
+                "budget:write"
+              ]
+            }
+          },
+          "issuer": {
+            "type": "string",
+            "format": "uri"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Expiração da sessão, em segundos Unix."
+          },
+          "csrf_token": {
+            "type": "string",
+            "description": "Segredo da sessão para X-CSRF-Token. Não publicar."
+          }
+        },
+        "required": [
+          "user_id",
+          "permissions",
+          "issuer",
+          "subject",
+          "expires_at",
+          "csrf_token"
+        ],
+        "additionalProperties": false
+      },
+      "CreateCycle": {
+        "type": "object",
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-01"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-11-01"
+          },
+          "income_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end",
+          "income_cents"
+        ],
+        "additionalProperties": false
+      },
+      "Cycle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "income_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "allocated_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "available_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "period_start",
+          "period_end",
+          "income_cents",
+          "allocated_cents",
+          "available_cents",
+          "currency",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "CreateEnvelope": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Aparado, sem caracteres de controle. Único por ciclo, com distinção entre maiúsculas e minúsculas."
+          },
+          "allocated_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "name",
+          "allocated_cents"
+        ],
+        "additionalProperties": false
+      },
+      "Envelope": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cycle_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "allocated_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "id",
+          "cycle_id",
+          "name",
+          "allocated_cents"
+        ],
+        "additionalProperties": false
+      },
+      "PatchEnvelope": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Aparado, sem caracteres de controle. Único por ciclo, com distinção entre maiúsculas e minúsculas."
+          },
+          "allocated_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "additionalProperties": false,
+        "minProperties": 1
+      }
+    },
+    "securitySchemes": {
+      "LocalSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "zb_session",
+        "description": "Cookie HttpOnly local, obtido após callback do Dex. Em HTTPS o nome é __Host-zb_session; nunca use bearer do Dex nas rotas de negócio."
+      },
+      "SecureSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-zb_session",
+        "description": "Sessão em HTTPS, alternativa ao cookie local."
+      }
+    },
+    "parameters": {
+      "Csrf": {
+        "name": "X-CSRF-Token",
+        "in": "header",
+        "required": true,
+        "schema": {
+          "type": "string"
+        },
+        "description": "Obtido por GET /api/auth/me na mesma sessão."
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
+        }
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000,
+          "default": 0
+        }
+      },
+      "Origin": {
+        "name": "Origin",
+        "in": "header",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "uri"
+        },
+        "description": "Se presente, deve ser exatamente API_PUBLIC_URL. Nenhuma origem CORS adicional é habilitada."
+      }
+    },
+    "responses": {
+      "400": {
+        "description": "IDs, query string, cookies ou callback malformados.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          },
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "401": {
+        "description": "Sessão ausente, expirada ou identidade inválida.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "403": {
+        "description": "Permissão insuficiente, conta bloqueada, CSRF ou origem inválidos.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "Recurso inexistente, de outro proprietário ou de outro ciclo.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "409": {
+        "description": "Período ou nome duplicado, ou alocação acima da renda.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "500": {
+        "description": "Erro de configuração interna.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "503": {
+        "description": "Dependência indisponível; sem fallback automático.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "413": {
+        "description": "Corpo acima de 4096 bytes.",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "415": {
+        "description": "Content-Type deve ser application/json.",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "422": {
+        "description": "Entrada inválida. Erros de domínio são JSON; rejeições de desserialização podem ser texto simples.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          },
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

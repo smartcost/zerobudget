@@ -1,0 +1,43 @@
+services:
+  app-postgres:
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_DB: zerobudget_e2e
+      POSTGRES_USER: zb_e2e_admin
+      POSTGRES_PASSWORD: e2e-admin-password
+    ports: ["127.0.0.1:${E2E_POSTGRES_PORT}:5432"]
+    volumes:
+      - app_data:/var/lib/postgresql
+      - ./config/e2e/init-runtime.sql:/docker-entrypoint-initdb.d/10-runtime.sql:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -h 127.0.0.1 -U zb_e2e_admin -d zerobudget_e2e",
+        ]
+      interval: 1s
+      timeout: 3s
+      retries: 45
+  redis:
+    image: redis:8-alpine@sha256:0bf6577d7774e592b29d093e3ac9390eb91e13d72c21e506afce736de5e0eeb0
+    command:
+      [
+        "redis-server",
+        "--maxmemory",
+        "64mb",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
+    ports: ["127.0.0.1:${E2E_REDIS_PORT}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 45
+  dex:
+    image: dexidp/dex:v2.37.0@sha256:f579d00721b0d842328c43a562f50343c54b0048ef2d58d6b54e750c21fc7938
+    command: ["dex", "serve", "/etc/dex/e2e.yaml"]
+    ports: ["127.0.0.1:${E2E_DEX_PORT}:5556"]
+    volumes: ["${E2E_DEX_CONFIG}:/etc/dex/e2e.yaml:ro"]
+volumes:
+  app_data:
