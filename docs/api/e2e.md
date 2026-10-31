@@ -153,7 +153,7 @@ exemplo não é interpretado automaticamente por todos os aplicativos.
 
 ## Cobertura e contrato
 
-Os 30 cenários cobrem:
+Os 36 cenários cobrem:
 
 - login/callback/PKCE, cookies HttpOnly, sessão e logout;
 - ausência de sessão e bearer arbitrário recusado;
@@ -167,6 +167,9 @@ Os 30 cenários cobrem:
 - despesas, saldo restante, histórico preservado e estorno idempotente;
 - datas dentro do ciclo, valores positivos, isolamento e permissões dos gastos;
 - despesas concorrentes sem excesso, estornos simultâneos e fechamento concorrente;
+- contas, recebimentos, transferências e extratos;
+- débito/estorno conjunto de conta e envelope, sem duplicar movimentações;
+- transferências concorrentes e despesas de ciclos diferentes na mesma conta;
 - criações e alterações concorrentes disputando o saldo.
 
 As respostas de sucesso verificadas pelo cliente usam os schemas do

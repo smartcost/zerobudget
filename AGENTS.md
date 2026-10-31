@@ -11,8 +11,9 @@ etapas pequenas, com regras de negócio verificáveis e isolamento entre usuári
 Não amplie a etapa em andamento para funcionalidades futuras sem necessidade.
 
 Atualmente há autenticação de usuários pelo Dex, sessões no servidor, permissões
-locais, ciclos planejados/ativos/fechados, envelopes e despesas manuais com estorno.
-Autenticação entre serviços, contas bancárias e receitas realizadas não estão implementadas. Não trate
+locais, ciclos planejados/ativos/fechados, envelopes, despesas com estorno, contas
+manuais, recebimentos e transferências próprias. Autenticação entre serviços,
+integração bancária, cartões e faturas não estão implementados. Não trate
 propostas de documentação como funcionalidades entregues.
 
 ## Arquitetura e dependências
@@ -21,6 +22,7 @@ propostas de documentação como funcionalidades entregues.
 | --- | --- |
 | `obz-domain` | Entidades, valores e invariantes financeiras; zero dependências externas |
 | `obz-cycle` | Casos de uso de ciclos, envelopes e despesas; autorização e contratos de persistência |
+| `obz-banking` | Casos de uso e contratos de contas e movimentações; independente de ciclos |
 | `obz-auth` | OIDC, autorização, contratos de identidade e sessões; adaptadores de sessão existentes |
 | `obz-infrastructure` | Conexão PostgreSQL, migrações e implementações dos repositórios |
 | `obz-api` | Transporte HTTP, configuração e composição das dependências |
@@ -28,7 +30,7 @@ propostas de documentação como funcionalidades entregues.
 - O domínio não conhece HTTP, SQLx, Redis, Dex ou variáveis de ambiente.
 - Casos de uso dependem de contratos de persistência, nunca de implementações
   PostgreSQL. Não coloque SQL, conversão de linhas ou privilégios nesses crates.
-- `infrastructure` implementa os contratos de `auth` e `cycle`; esses crates não
+- `infrastructure` implementa os contratos de `auth`, `cycle` e `banking`; esses crates não
   dependem de `infrastructure`. A API injeta as implementações.
 - O crate `shared` foi removido. Não recrie um agrupamento genérico para esconder
   responsabilidades de infraestrutura ou introduzir dependências circulares.
@@ -51,6 +53,12 @@ propostas de documentação como funcionalidades entregues.
   Lançamentos e estornos são imutáveis; estorno repetido não devolve saldo novamente.
   Gastos não alteram a alocação. Use o mesmo lock por ciclo para gastos, estornos
   e fechamento.
+  Novas despesas exigem conta própria e débito atômico com o consumo do envelope.
+  Contas não podem ficar negativas nem exceder i64::MAX. Transferências são uma
+  única operação entre contas próprias; não geram receita/despesa no orçamento.
+  Recebimentos não alteram a renda planejada automaticamente. O histórico anterior
+  à migração bancária pode ter account_id nulo e não produz lançamentos fictícios.
+  Preserve a ordem dos locks: ciclo primeiro, proprietário bancário depois.
   O fim do período é exclusivo. Mudar esses contratos exige regra explícita e testes.
 
 ## Autenticação, autorização e isolamento
@@ -137,4 +145,4 @@ cargo clippy --workspace --all-targets -- -D warnings
 Referências: [API](crates/api/README.md), [autenticação](crates/auth/README.md),
 [identidades e permissões](docs/identidades-e-permissoes.md) e
 [ciclos planejados](docs/ciclos-planejados.md), [envelopes](docs/envelopes.md) e
-[despesas e estornos](docs/despesas.md).
+[despesas e estornos](docs/despesas.md) e [contas](docs/contas.md).

@@ -44,3 +44,21 @@ export async function totals(actor: Actor, id: string): Promise<Cycle> {
     "Cycle",
   );
 }
+
+export async function account(
+  actor: Actor,
+  opening = 100000,
+  kind = "bank",
+  opened = "0001-01-01",
+) {
+  return body<{ id: string; balance_cents: number }>(
+    await actor.api.send("POST", "/api/accounts", {
+      name: `Test-${crypto.randomUUID()}`,
+      kind,
+      opened_on: opened,
+      opening_balance_cents: opening,
+    }),
+    201,
+    "Account",
+  );
+}

@@ -14,7 +14,7 @@ Os testes e a captura de variáveis já estão incorporados à coleção version
 
 | Arquivo | Finalidade |
 | --- | --- |
-| [openapi.json](openapi.json) | Contrato OpenAPI 3.0.3 de saúde, autenticação, ciclos, envelopes e despesas |
+| [openapi.json](openapi.json) | Contrato OpenAPI 3.0.3 de saúde, autenticação, ciclos, envelopes, despesas e contas |
 | [Coleção Postman](postman/zerobudget.postman_collection.json) | Operações manuais, validação de envelopes e logout separado |
 | [Ambiente local](postman/local.postman_environment.json) | Base URL e parâmetros de desenvolvimento, sem sessão ou credenciais exportadas |
 
@@ -112,7 +112,7 @@ O primeiro login não concede direitos financeiros. As operações exigem:
 
 | Tipo | Permissão |
 | --- | --- |
-| Listar/consultar ciclos, envelopes e despesas | `budget:read` |
+| Listar/consultar ciclos, envelopes, despesas e contas | `budget:read` |
 | Criar/ativar/fechar ciclos, alterar envelopes, registrar/estornar despesas | `budget:write` |
 
 Use o UUID local retornado por **Consultar sessão**, não o subject do Dex. Se
@@ -262,7 +262,7 @@ Regras e privilégios: [ciclo de vida](../ciclo-de-vida.md).
 
 Após ativar um ciclo, use **Registrar despesa**, **Listar despesas** e **Estornar
 despesa** na pasta manual. Defina `cycle_id`, `envelope_id`, `expense_description`,
-`expense_date` e `expense_amount_cents`; criação bem-sucedida captura `expense_id`.
+`expense_date`, `expense_amount_cents` e `account_id` próprio; criação bem-sucedida captura `expense_id`.
 A listagem de envelopes inclui os gastos e o saldo restante. O estorno preserva
 o original, requer ciclo ativo e devolve saldo uma única vez.
 
@@ -273,3 +273,21 @@ Para regressão automática, com login e dados descartáveis:
 ```
 
 Regras, limites e persistência: [despesas e estornos](../despesas.md).
+
+## Contas e movimentações
+
+A pasta manual inclui criar/listar/consultar contas, registrar recebimento,
+transferir entre contas próprias e consultar extrato. Defina `account_name`,
+`account_kind` (`bank`/`cash`), `account_opened_on` e `opening_balance_cents`.
+Criar uma conta captura `account_id`. Para transferir, selecione também
+`to_account_id`, `banking_date`, `banking_description` e `banking_amount_cents`.
+
+Novas despesas exigem `account_id`, com saldo suficiente. O estorno devolve saldo
+bancário e orçamentário uma única vez. Contas são manuais: não há integração com
+bancos. Recebimentos não alteram automaticamente a renda planejada.
+
+```sh
+./scripts/e2e test banking
+```
+
+Contrato, migração e limites: [contas](../contas.md).

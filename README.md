@@ -21,3 +21,5 @@ Envelopes: [regras, API e roteiro de teste](docs/envelopes.md).
 - [E2E com login Dex automático e Playwright MCP](docs/api/e2e.md): `./scripts/e2e test`
 
 Despesas manuais e estornos: [regras, saldo e API](docs/despesas.md).
+
+Contas bancárias manuais e carteira: [saldos, recebimentos e transferências](docs/contas.md).

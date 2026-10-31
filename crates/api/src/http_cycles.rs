@@ -76,6 +76,13 @@ impl From<CycleError> for ApiError {
             CycleError::InsufficientFunds => {
                 Self(StatusCode::CONFLICT, "insufficient envelope balance")
             }
+            CycleError::AccountInsufficientFunds => {
+                Self(StatusCode::CONFLICT, "insufficient account balance")
+            }
+            CycleError::BalanceOverflow => Self(
+                StatusCode::CONFLICT,
+                "account balance exceeds integer limit",
+            ),
             CycleError::Unavailable => Self(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "budget storage unavailable",

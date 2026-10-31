@@ -34,8 +34,8 @@ async fn raw_expense(
     date: &str,
 ) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
     let mut tx = tx(s).await;
-    let result=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on) VALUES($1,$2,$3,$4,'Raw',$5,$6::text::date)")
-        .bind(id).bind(s.cycle).bind(s.user).bind(envelope).bind(amount).bind(date).execute(&mut *tx).await;
+    let result=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on,account_id) VALUES($1,$2,$3,$4,'Raw',$5,$6::text::date,$7)")
+        .bind(id).bind(s.cycle).bind(s.user).bind(envelope).bind(amount).bind(date).bind(s.account).execute(&mut *tx).await;
     if result.is_ok() {
         tx.commit().await.unwrap();
     } else {
@@ -79,7 +79,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
         "23514"
     );
     let mut batch_tx = tx(&s).await;
-    let batch=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on) VALUES(gen_random_uuid(),$1,$2,$3,'Batch A',$4,DATE '2026-10-01'),(gen_random_uuid(),$1,$2,$3,'Batch B',1,DATE '2026-10-01')")
+    let batch=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on,account_id) VALUES(gen_random_uuid(),$1,$2,$3,'Batch A',$4,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$2 AND name='Fixture')),(gen_random_uuid(),$1,$2,$3,'Batch B',1,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$2 AND name='Fixture'))")
         .bind(s.cycle).bind(s.user).bind(envelope).bind(i64::MAX).execute(&mut *batch_tx).await;
     assert_eq!(sqlstate(batch.unwrap_err()), "ZB003");
     batch_tx.rollback().await.unwrap();
@@ -153,7 +153,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
         .execute(&mut *stale_tx)
         .await
         .unwrap();
-    let stale=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents) VALUES($1,$2,$3,$4,'Stale',DATE '2026-10-01',1)")
+    let stale=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents,account_id) VALUES($1,$2,$3,$4,'Stale',DATE '2026-10-01',1,(SELECT id FROM banking.accounts WHERE owner_id=$4 AND name='Fixture'))")
         .bind(Uuid::new_v4()).bind(s.cycle).bind(envelope).bind(s.user).execute(&mut *stale_tx).await;
     assert_eq!(sqlstate(stale.unwrap_err()), "25000");
     stale_tx.rollback().await.unwrap();
@@ -222,7 +222,7 @@ async fn expenses_raw_sql_and_closure_serialize_with_application_writes() {
     let user = s.user;
     let cycle = s.cycle;
     let mut first_tx = tx(&s).await;
-    sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on) VALUES($1,$2,$3,$4,'First',100,DATE '2026-10-01')")
+    sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on,account_id) VALUES($1,$2,$3,$4,'First',100,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$3 AND name='Fixture'))")
         .bind(first).bind(cycle).bind(user).bind(envelope).execute(&mut *first_tx).await.unwrap();
     let runtime = s.runtime.clone();
     let mut competing = tokio::spawn(async move {
@@ -232,7 +232,7 @@ async fn expenses_raw_sql_and_closure_serialize_with_application_writes() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let result=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on) VALUES($1,$2,$3,$4,'Second',100,DATE '2026-10-01')")
+        let result=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on,account_id) VALUES($1,$2,$3,$4,'Second',100,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$3 AND name='Fixture'))")
             .bind(Uuid::new_v4()).bind(cycle).bind(user).bind(envelope).execute(&mut *tx).await;
         tx.rollback().await.unwrap();
         result
@@ -247,6 +247,7 @@ async fn expenses_raw_sql_and_closure_serialize_with_application_writes() {
     let mut reverse_tx = tx(&s).await;
     sqlx::query("INSERT INTO budgeting.expense_reversals(expense_id,cycle_id,envelope_id,owner_id) VALUES($1,$2,$3,$4)").bind(first).bind(cycle).bind(envelope).bind(user).execute(&mut *reverse_tx).await.unwrap();
     let repository = PostgresExpenseRepository::new(s.runtime.clone());
+    let account_id = s.account;
     let mut spend = tokio::spawn(async move {
         let user = obz_auth::LocalUser::from_persisted(user, [WriteBudget].into_iter().collect());
         obz_cycle::ExpenseService::new(Arc::new(repository))
@@ -254,9 +255,12 @@ async fn expenses_raw_sql_and_closure_serialize_with_application_writes() {
                 &user,
                 cycle,
                 envelope,
-                "After reversal",
-                chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
-                100,
+                obz_cycle::ExpenseInput {
+                    account_id,
+                    description: "After reversal".into(),
+                    date: chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
+                    amount_cents: 100,
+                },
             )
             .await
     });

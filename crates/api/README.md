@@ -231,3 +231,10 @@ Consulte [ciclo de vida](../../docs/ciclo-de-vida.md) para migração e testes.
 Consulte [despesas manuais](../../docs/despesas.md) para registro, listagem e
 estorno, saldos de envelopes e a migração `0005_expenses.sql`. A regressão isolada
 usa `./scripts/e2e test expenses`. Gastos não alteram a distribuição da renda.
+
+## Contas manuais e movimentações
+
+Consulte [contas e movimentações](../../docs/contas.md). A migração 0006 exige
+`account_id` nas novas despesas; débito e estorno bancário são atômicos com o
+orçamento. Recebimentos e transferências não alteram a renda planejada.
+A regressão isolada usa `./scripts/e2e test banking`. Cartões ainda não existem.

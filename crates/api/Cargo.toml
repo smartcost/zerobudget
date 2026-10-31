@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+obz-banking = { path = "../banking" }
 obz-infrastructure = { path = "../infrastructure" }
 obz-cycle = { path = "../cycle" }
 chrono = { version = "0.4", features = ["serde"] }

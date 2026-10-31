@@ -1,7 +1,8 @@
 # Despesas manuais e estornos
 
 Uma despesa registra o uso do dinheiro de um envelope em um ciclo **ativo**.
-Não representa uma transferência bancária. A alocação permanece fixa; o saldo
+Novas despesas exigem `account_id` próprio: o débito é registrado na mesma
+transação do consumo do envelope. Não representa uma transferência entre contas. A alocação permanece fixa; o saldo
 para gastar é `allocated_cents - spent_cents`. O gasto inclui somente despesas
 que não foram estornadas.
 
@@ -18,11 +19,14 @@ mede dinheiro ainda não distribuído, não o dinheiro restante para gastar.
   agenda uma execução posterior: o gasto é contabilizado imediatamente.
 - Somente ciclos ativos aceitam despesas e estornos. Planejados e fechados
   retornam 409. As consultas permanecem disponíveis em todos os estados.
-- Saldo insuficiente retorna 409, inclusive sob requisições simultâneas.
+- Saldo insuficiente no envelope **ou na conta** retorna 409, inclusive sob
+  requisições simultâneas. A data também não pode anteceder a abertura da conta.
 - O lançamento original é imutável: sem PATCH ou DELETE. Para corrigir, estorne
   e registre outra despesa enquanto o ciclo estiver ativo.
 - O estorno é integral, preserva o original e devolve saldo uma única vez.
-  Repeti-lo em ciclo ativo retorna 200 com a mesma despesa estornada.
+  Repeti-lo em ciclo ativo retorna 200 com a mesma despesa estornada. O crédito
+  bancário também ocorre uma única vez. Se exceder i64::MAX, a operação inteira
+  falha com 409; a despesa permanece sem estorno.
 - O fechamento pode ocorrer com dinheiro não gasto; o saldo permanece consultável.
   Não há reabertura, estorno em ciclo fechado ou transporte automático de saldo.
 
@@ -40,11 +44,11 @@ Todas as rotas ficam sob
 Corpo de criação (substitua a data por uma dentro do ciclo selecionado):
 
 ```json
-{"description":"Alimentação","occurred_on":"2026-10-30","amount_cents":12000}
+{"account_id":"UUID_DA_CONTA","description":"Alimentação","occurred_on":"2026-10-30","amount_cents":12000}
 ```
 
 A resposta contém `id`, `cycle_id`, `envelope_id`, `description`, `occurred_on`,
-`amount_cents` e `status` (`posted` ou `reversed`). A listagem ordena por data
+`amount_cents`, `account_id` e `status` (`posted` ou `reversed`). A listagem ordena por data
 decrescente e UUID decrescente; `limit` vai de 1 a 100 e `offset` de 0 a 100000.
 Paginação por offset pode mudar sob escritas concorrentes.
 
@@ -103,4 +107,9 @@ usam bancos temporários e as variáveis descritas em [AGENTS.md](../AGENTS.md);
 cobrem RLS, imutabilidade, aritmética de 64 bits e ordens controladas do lock.
 
 O [contrato OpenAPI e a coleção Postman](api/README.md) incluem as três operações.
-Não há contas bancárias, receitas realizadas, importação ou integração financeira.
+Contas manuais, recebimentos e transferências estão em [contas](contas.md). Não
+há importação, integração bancária ou cartão de crédito.
+
+A migração 0006 preserva despesas antigas com `account_id=null`. Elas não debitam
+contas e seus estornos não geram créditos bancários. Não se inventa vínculo com
+uma conta para o histórico; novas despesas sem conta são rejeitadas.

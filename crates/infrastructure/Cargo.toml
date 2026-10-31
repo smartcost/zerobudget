@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+obz-banking = { path = "../banking" }
 obz-domain = { path = "../domain" }
 obz-cycle = { path = "../cycle" }
 obz-auth = { path = "../auth" }

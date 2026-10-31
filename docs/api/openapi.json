@@ -26,6 +26,9 @@
     },
     {
       "name": "Despesas"
+    },
+    {
+      "name": "Contas"
     }
   ],
   "paths": {
@@ -1001,7 +1004,7 @@
             "$ref": "#/components/responses/422"
           }
         },
-        "description": "Exige budget:write e CSRF. Ciclo ativo, data dentro do período e saldo suficiente no envelope. Proprietário derivado da sessão. Despesa original imutável; não há edição nem exclusão. Requisições não são deduplicadas: após falha de transporte, consulte a lista antes de repetir.",
+        "description": "Exige budget:write e CSRF. Ciclo ativo, data dentro do período e saldo suficiente no envelope. Proprietário derivado da sessão. Despesa original imutável; não há edição nem exclusão. Requisições não são deduplicadas: após falha de transporte, consulte a lista antes de repetir. Exige account_id próprio: débito bancário e consumo do envelope são atômicos. Saldo bancário insuficiente ou estorno acima de i64::MAX retorna 409.",
         "parameters": [
           {
             "$ref": "#/components/parameters/Csrf"
@@ -1111,6 +1114,438 @@
             "$ref": "#/components/parameters/Origin"
           }
         ]
+      }
+    },
+    "/api/accounts": {
+      "post": {
+        "operationId": "createAccount",
+        "summary": "Criar conta ou carteira",
+        "tags": [
+          "Contas"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Criar conta ou carteira",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          }
+        },
+        "description": "Proprietário da sessão. budget:read para GET; budget:write e CSRF para mutações. Contas e movimentações imutáveis. Datas anteriores à abertura e saldo negativo são recusados. Centavos inteiros; não altera o planejamento.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccount"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listAccounts",
+        "summary": "Listar contas e saldos",
+        "tags": [
+          "Contas"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Listar contas e saldos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Account"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "description": "Proprietário da sessão. budget:read para GET; budget:write e CSRF para mutações. Contas e movimentações imutáveis. Datas anteriores à abertura e saldo negativo são recusados. Centavos inteiros; não altera o planejamento.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/api/accounts/{account_id}": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getAccount",
+        "summary": "Consultar conta e saldo",
+        "tags": [
+          "Contas"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar conta e saldo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "description": "Proprietário da sessão. budget:read para GET; budget:write e CSRF para mutações. Contas e movimentações imutáveis. Datas anteriores à abertura e saldo negativo são recusados. Centavos inteiros; não altera o planejamento.",
+        "parameters": []
+      }
+    },
+    "/api/accounts/{account_id}/receipts": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "recordReceipt",
+        "summary": "Registrar recebimento",
+        "tags": [
+          "Contas"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Registrar recebimento",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movement"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          }
+        },
+        "description": "Proprietário da sessão. budget:read para GET; budget:write e CSRF para mutações. Contas e movimentações imutáveis. Datas anteriores à abertura e saldo negativo são recusados. Centavos inteiros; não altera o planejamento.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReceipt"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{account_id}/movements": {
+      "parameters": [
+        {
+          "name": "account_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "accountStatement",
+        "summary": "Consultar extrato",
+        "tags": [
+          "Contas"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Consultar extrato",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StatementEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "description": "Proprietário da sessão. budget:read para GET; budget:write e CSRF para mutações. Contas e movimentações imutáveis. Datas anteriores à abertura e saldo negativo são recusados. Centavos inteiros; não altera o planejamento.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/api/transfers": {
+      "post": {
+        "operationId": "transferAccounts",
+        "summary": "Transferir entre contas próprias",
+        "tags": [
+          "Contas"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Transferir entre contas próprias",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Movement"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          }
+        },
+        "description": "Proprietário da sessão. budget:read para GET; budget:write e CSRF para mutações. Contas e movimentações imutáveis. Datas anteriores à abertura e saldo negativo são recusados. Centavos inteiros; não altera o planejamento.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransfer"
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -1373,12 +1808,17 @@
             "minimum": 1,
             "maximum": 9223372036854775807,
             "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "description",
           "occurred_on",
-          "amount_cents"
+          "amount_cents",
+          "account_id"
         ],
         "additionalProperties": false
       },
@@ -1421,6 +1861,12 @@
               "posted",
               "reversed"
             ]
+          },
+          "account_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Conta de pagamento; null somente no histórico anterior à migração 0006."
           }
         },
         "required": [
@@ -1430,7 +1876,291 @@
           "description",
           "occurred_on",
           "amount_cents",
-          "status"
+          "status",
+          "account_id"
+        ],
+        "additionalProperties": false
+      },
+      "Account": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bank",
+              "cash"
+            ]
+          },
+          "opened_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "opening_balance_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "balance_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "opened_on",
+          "opening_balance_cents",
+          "balance_cents",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "CreateAccount": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bank",
+              "cash"
+            ]
+          },
+          "opened_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "opening_balance_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "opened_on",
+          "opening_balance_cents"
+        ],
+        "additionalProperties": false
+      },
+      "CreateReceipt": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Aparada, sem caracteres de controle."
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "description",
+          "occurred_on",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "CreateTransfer": {
+        "type": "object",
+        "properties": {
+          "from_account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "to_account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Aparada, sem caracteres de controle."
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "from_account_id",
+          "to_account_id",
+          "description",
+          "occurred_on",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "Movement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "receipt",
+              "transfer",
+              "expense",
+              "expense_reversal"
+            ]
+          },
+          "from_account_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "to_account_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "expense_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Aparada, sem caracteres de controle."
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "from_account_id",
+          "to_account_id",
+          "expense_id",
+          "description",
+          "occurred_on",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "StatementEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "receipt",
+              "transfer",
+              "expense",
+              "expense_reversal"
+            ]
+          },
+          "from_account_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "to_account_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "expense_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Aparada, sem caracteres de controle."
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "delta_cents": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "from_account_id",
+          "to_account_id",
+          "expense_id",
+          "description",
+          "occurred_on",
+          "amount_cents",
+          "delta_cents"
         ],
         "additionalProperties": false
       }

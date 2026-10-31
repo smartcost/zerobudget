@@ -23,6 +23,7 @@ pub(crate) fn routes() -> Router<AppState> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Create {
+    account_id: Uuid,
     description: String,
     occurred_on: String,
     amount_cents: i64,
@@ -42,11 +43,13 @@ struct ExpenseResponse {
     occurred_on: chrono::NaiveDate,
     amount_cents: i64,
     status: &'static str,
+    account_id: Option<Uuid>,
 }
 impl From<BudgetExpense> for ExpenseResponse {
     fn from(r: BudgetExpense) -> Self {
         Self {
             id: r.id,
+            account_id: r.account_id,
             cycle_id: r.cycle_id,
             envelope_id: r.envelope_id,
             description: r.expense.description().into(),
@@ -75,9 +78,12 @@ async fn create(
             &auth.user,
             cycle,
             envelope,
-            &body.description,
-            crate::http_cycles::date(&body.occurred_on)?,
-            body.amount_cents,
+            obz_cycle::ExpenseInput {
+                account_id: body.account_id,
+                description: body.description,
+                date: crate::http_cycles::date(&body.occurred_on)?,
+                amount_cents: body.amount_cents,
+            },
         )
         .await?;
     Ok((StatusCode::CREATED, Json(record.into())))

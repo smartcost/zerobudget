@@ -1,0 +1,13 @@
+[package]
+name = "obz-banking"
+version = "0.1.0"
+edition = "2021"
+[dependencies]
+obz-domain = { path = "../domain" }
+obz-auth = { path = "../auth" }
+async-trait = "0.1"
+chrono = "0.4"
+uuid = { version = "1", features = ["v4"] }
+thiserror = "2"
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

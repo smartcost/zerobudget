@@ -13,3 +13,6 @@ pub use postgres_envelope::PostgresEnvelopeRepository;
 
 mod postgres_expense;
 pub use postgres_expense::PostgresExpenseRepository;
+
+mod postgres_banking;
+pub use postgres_banking::PostgresBankingRepository;

@@ -438,10 +438,10 @@
                 "value": "{{csrf_token}}"
               }
             ],
-            "description": "Ciclo ativo; data dentro do período; saldo suficiente. Gravação persistente. Após falha de transporte, consulte as despesas antes de repetir.",
+            "description": "Ciclo ativo; data dentro do período; saldo suficiente. Gravação persistente. Após falha de transporte, consulte as despesas antes de repetir. Conta própria obrigatória; débito e consumo do envelope são atômicos.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"description\": {{expense_description_json}},\n  \"occurred_on\": \"{{expense_date}}\",\n  \"amount_cents\": {{expense_amount_cents}}\n}",
+              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"description\": {{expense_description_json}},\n  \"occurred_on\": \"{{expense_date}}\",\n  \"amount_cents\": {{expense_amount_cents}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -457,7 +457,8 @@
                 "exec": [
                   "if (!pm.environment.get('csrf_token') || !pm.environment.get('cycle_id') || !pm.environment.get('envelope_id')) throw new Error('Consulte a sessão e selecione cycle_id/envelope_id.');",
                   "if (!pm.environment.get('expense_date')) throw new Error('Defina expense_date (YYYY-MM-DD dentro do ciclo).');",
-                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Despesa')); "
+                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Despesa')); ",
+                  "if (!pm.environment.get('account_id')) throw new Error('Selecione account_id para pagar a despesa.');"
                 ]
               }
             },
@@ -525,6 +526,214 @@
                 "exec": [
                   "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
                   "if (pm.response.code === 200) pm.test('Despesa estornada', function () { pm.expect(pm.response.json().status).to.eql('reversed'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar conta ou carteira",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/accounts",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": {{account_name_json}},\n \"kind\": \"{{account_kind}}\",\n \"opened_on\": \"{{account_opened_on}}\",\n \"opening_balance_cents\": {{opening_balance_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão antes de alterar dados.');",
+                  "pm.variables.set('account_name_json', JSON.stringify(pm.environment.get('account_name') || 'Conta'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Movimentação')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code === 201) pm.environment.set('account_id',pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar contas",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/accounts?limit=20&offset=0",
+            "header": [],
+            "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar conta",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/accounts/{{account_id}}",
+            "header": [],
+            "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar recebimento",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/accounts/{{account_id}}/receipts",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"description\": {{banking_description_json}},\n \"occurred_on\": \"{{banking_date}}\",\n \"amount_cents\": {{banking_amount_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão antes de alterar dados.');",
+                  "pm.variables.set('account_name_json', JSON.stringify(pm.environment.get('account_name') || 'Conta'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Movimentação')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transferir entre contas",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/transfers",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"from_account_id\": \"{{account_id}}\",\n \"to_account_id\": \"{{to_account_id}}\",\n \"description\": {{banking_description_json}},\n \"occurred_on\": \"{{banking_date}}\",\n \"amount_cents\": {{banking_amount_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão antes de alterar dados.');",
+                  "pm.variables.set('account_name_json', JSON.stringify(pm.environment.get('account_name') || 'Conta'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Movimentação')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar extrato",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/accounts/{{account_id}}/movements?limit=20&offset=0",
+            "header": [],
+            "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
                 ]
               }
             }

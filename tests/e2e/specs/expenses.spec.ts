@@ -5,17 +5,24 @@ import {
   type Expense,
   type Envelope,
 } from "../fixtures/api-client.js";
-import { cycle, envelope, totals } from "../fixtures/test-data.js";
+import { cycle, envelope, totals, account } from "../fixtures/test-data.js";
 import { admin } from "../fixtures/environment.js";
 async function setup(actor: Actor, amount = 10000, activate = true) {
   const budget = await cycle(actor, amount);
+  const funding = await account(actor, amount);
   const item = await envelope(actor, budget.id, "Expenses", amount);
   const root = `/api/cycles/${budget.id}`;
   if (activate)
     expect((await actor.api.send("POST", `${root}/activate`)).status()).toBe(
       200,
     );
-  return { budget, item, root, path: `${root}/envelopes/${item.id}/expenses` };
+  return {
+    budget,
+    funding,
+    item,
+    root,
+    path: `${root}/envelopes/${item.id}/expenses`,
+  };
 }
 async function balance(actor: Actor, cycleId: string, envelopeId: string) {
   const response = await actor.api.send(
@@ -31,10 +38,11 @@ async function balance(actor: Actor, cycleId: string, envelopeId: string) {
 test("despesa, saldo e estorno preservam o histórico e a alocação", async ({
   alice,
 }) => {
-  const { budget, item, path } = await setup(alice);
+  const { budget, item, path, funding } = await setup(alice);
   const input = {
     description: " Food ",
     occurred_on: budget.period_start,
+    account_id: funding.id,
     amount_cents: 1200,
   };
   const expense = await body<Expense>(
@@ -68,10 +76,11 @@ test("despesa, saldo e estorno preservam o histórico e a alocação", async ({
 test("valores, descrição, data, período e campos proibidos são validados", async ({
   alice,
 }) => {
-  const { budget, path } = await setup(alice);
+  const { budget, path, funding } = await setup(alice);
   const valid = {
     description: "Food",
     occurred_on: budget.period_start,
+    account_id: funding.id,
     amount_cents: 1,
   };
   for (const patch of [
@@ -101,10 +110,11 @@ test("valores, descrição, data, período e campos proibidos são validados", a
 test("recusa excesso e só registra ou estorna em ciclo ativo; fechado preserva consultas", async ({
   alice,
 }) => {
-  const { budget, item, root, path } = await setup(alice, 100, false);
+  const { budget, item, root, path, funding } = await setup(alice, 100, false);
   const input = {
     description: "All",
     occurred_on: budget.period_start,
+    account_id: funding.id,
     amount_cents: 100,
   };
   await rejection(await alice.api.send("POST", path, input), 409);
@@ -131,10 +141,11 @@ test("isolamento por proprietário e vínculo entre ciclo, envelope e despesa", 
   alice,
   login,
 }) => {
-  const { budget, path } = await setup(alice);
+  const { budget, path, funding } = await setup(alice);
   const input = {
     description: "Private",
     occurred_on: budget.period_start,
+    account_id: funding.id,
     amount_cents: 1,
   };
   const expense = await body<Expense>(
@@ -174,10 +185,11 @@ test("sessão, CSRF, origem e permissões atuais protegem despesas e estornos", 
   login,
   request,
 }) => {
-  const { budget, path } = await setup(alice);
+  const { budget, path, funding } = await setup(alice);
   const input = {
     description: "Protected",
     occurred_on: budget.period_start,
+    account_id: funding.id,
     amount_cents: 1,
   };
   const expense = await body<Expense>(
@@ -214,11 +226,12 @@ test("somente escrita registra e estorna sem conceder GET", async ({
   login,
 }) => {
   const actor = await login("writer");
-  const { budget, path } = await setup(actor);
+  const { budget, path, funding } = await setup(actor);
   const expense = await body<Expense>(
     await actor.api.send("POST", path, {
       description: "Write",
       occurred_on: budget.period_start,
+      account_id: funding.id,
       amount_cents: 100,
     }),
     201,
@@ -232,12 +245,13 @@ test("somente escrita registra e estorna sem conceder GET", async ({
 test("despesas concorrentes respeitam o saldo e estornos simultâneos creditam uma vez", async ({
   alice,
 }) => {
-  const { budget, item, path } = await setup(alice, 100);
+  const { budget, item, path, funding } = await setup(alice, 100);
   const results = await Promise.all(
     Array.from({ length: 10 }, (_, i) =>
       alice.api.send("POST", path, {
         description: `Race ${i}`,
         occurred_on: budget.period_start,
+        account_id: funding.id,
         amount_cents: 20,
       }),
     ),
@@ -265,11 +279,12 @@ test("despesas concorrentes respeitam o saldo e estornos simultâneos creditam u
 });
 test("fechamento concorrente serializa com despesas", async ({ alice }) => {
   for (let i = 0; i < 3; i++) {
-    const { budget, item, root, path } = await setup(alice, 100);
+    const { budget, item, root, path, funding } = await setup(alice, 100);
     const [write, close] = await Promise.all([
       alice.api.send("POST", path, {
         description: "Race close",
         occurred_on: budget.period_start,
+        account_id: funding.id,
         amount_cents: 100,
       }),
       alice.api.send("POST", `${root}/close`),
@@ -284,6 +299,7 @@ test("fechamento concorrente serializa com despesas", async ({ alice }) => {
       await alice.api.send("POST", path, {
         description: "After close",
         occurred_on: budget.period_start,
+        account_id: funding.id,
         amount_cents: 1,
       }),
       409,

@@ -1397,6 +1397,7 @@ dependencies = [
  "chrono",
  "http-body-util",
  "obz-auth",
+ "obz-banking",
  "obz-cycle",
  "obz-infrastructure",
  "openidconnect",
@@ -1429,6 +1430,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "obz-banking"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "obz-auth",
+ "obz-domain",
+ "thiserror 2.0.21",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
 name = "obz-cycle"
 version = "0.1.0"
 dependencies = [
@@ -1451,6 +1465,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "obz-auth",
+ "obz-banking",
  "obz-cycle",
  "obz-domain",
  "sqlx",

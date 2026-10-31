@@ -17,6 +17,7 @@ struct Setup {
     csrf: String,
     user: Uuid,
     cycle: Uuid,
+    account: Uuid,
 }
 async fn json(response: Response) -> Value {
     serde_json::from_slice(&response.into_body().collect().await.unwrap().to_bytes()).unwrap()
@@ -62,6 +63,7 @@ impl Setup {
             .await
             .unwrap();
         obz_infrastructure::PostgresExpenseRepository::new(owner.clone()).grant_runtime_role(&db.runtime_role).await.unwrap();
+        obz_infrastructure::PostgresBankingRepository::new(owner.clone()).grant_runtime_role(&db.runtime_role).await.unwrap();
         let runtime = Database::connect(DatabaseConfig::new(db.runtime_url.clone(), true))
             .await
             .unwrap();
@@ -73,6 +75,7 @@ impl Setup {
         fixture.state.envelopes = Some(EnvelopeService::new(Arc::new(
             PostgresEnvelopeRepository::new(runtime.clone()),
         )));
+        fixture.state.banking=Some(obz_banking::BankingService::new(Arc::new(obz_infrastructure::PostgresBankingRepository::new(runtime.clone()))));
         fixture.state.expenses = Some(obz_cycle::ExpenseService::new(Arc::new(obz_infrastructure::PostgresExpenseRepository::new(runtime.clone()))));
         let (cookie, csrf) = fixture.authenticate().await;
         let user = me_data(&fixture, &cookie).await["user_id"]
@@ -82,6 +85,8 @@ impl Setup {
             .unwrap();
         let admin = PostgresIdentityRepository::from_database(&owner);
         admin.grant(user, WriteBudget).await.unwrap();
+        let actor=obz_auth::LocalUser::from_persisted(user,[WriteBudget].into_iter().collect());
+        let account=fixture.state.banking.as_ref().unwrap().create(&actor,obz_banking::AccountInput{name:"Fixture".into(),kind:"bank".into(),opened_on:chrono::NaiveDate::from_ymd_opt(1,1,1).unwrap(),opening_balance_cents:income}).await.unwrap().id;
         let response = request(
             &fixture,
             &cookie,
@@ -106,6 +111,7 @@ impl Setup {
             csrf,
             user,
             cycle,
+            account,
         }
     }
     fn path(&self) -> String {
@@ -696,3 +702,6 @@ async fn lifecycle_and_envelope_writes_serialize_in_both_lock_orders() {
 
 #[path = "expense_tests.rs"]
 mod expense_tests;
+
+#[path = "banking_tests.rs"]
+mod banking_tests;

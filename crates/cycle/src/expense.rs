@@ -13,6 +13,19 @@ pub struct BudgetExpense {
     pub envelope_id: Uuid,
     pub expense: Expense,
     pub reversed: bool,
+    pub account_id: Option<Uuid>,
+}
+#[derive(Debug, Clone)]
+pub struct ExpenseInput {
+    pub account_id: Uuid,
+    pub description: String,
+    pub date: NaiveDate,
+    pub amount_cents: i64,
+}
+#[derive(Debug, Clone)]
+pub struct FundedExpense {
+    pub account_id: Uuid,
+    pub expense: Expense,
 }
 /// Mutations must acquire the cycle allocation/lifecycle lock before loading the
 /// parent, balance and reversal. Preserve the immutable original expense and scope
@@ -25,7 +38,7 @@ pub trait ExpenseRepository: Send + Sync {
         cycle: Uuid,
         envelope: Uuid,
         id: Uuid,
-        expense: Expense,
+        funded: FundedExpense,
     ) -> Result<BudgetExpense, CycleError>;
     async fn list(
         &self,
@@ -56,16 +69,27 @@ impl ExpenseService {
         user: &LocalUser,
         cycle: Uuid,
         envelope: Uuid,
-        description: &str,
-        date: NaiveDate,
-        amount: i64,
+        input: ExpenseInput,
     ) -> Result<BudgetExpense, CycleError> {
         user.require(Permission::WriteBudget)
             .map_err(|_| CycleError::Forbidden)?;
-        let expense = Expense::new(description, date.num_days_from_ce(), amount)
-            .map_err(|_| CycleError::Invalid)?;
+        let expense = Expense::new(
+            &input.description,
+            input.date.num_days_from_ce(),
+            input.amount_cents,
+        )
+        .map_err(|_| CycleError::Invalid)?;
         self.repository
-            .create(user.id(), cycle, envelope, Uuid::new_v4(), expense)
+            .create(
+                user.id(),
+                cycle,
+                envelope,
+                Uuid::new_v4(),
+                FundedExpense {
+                    account_id: input.account_id,
+                    expense,
+                },
+            )
             .await
     }
     pub async fn list(
@@ -113,14 +137,15 @@ mod tests {
             cycle: Uuid,
             envelope: Uuid,
             id: Uuid,
-            expense: Expense,
+            funded: FundedExpense,
         ) -> Result<BudgetExpense, CycleError> {
             self.0.lock().unwrap().push((owner, cycle, envelope));
             Ok(BudgetExpense {
                 id,
                 cycle_id: cycle,
                 envelope_id: envelope,
-                expense,
+                expense: funded.expense,
+                account_id: Some(funded.account_id),
                 reversed: false,
             })
         }
@@ -157,7 +182,19 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
         let denied = LocalUser::from_persisted(owner, Default::default());
         assert!(matches!(
-            service.create(&denied, cycle, envelope, "A", date, 1).await,
+            service
+                .create(
+                    &denied,
+                    cycle,
+                    envelope,
+                    ExpenseInput {
+                        account_id: Uuid::new_v4(),
+                        description: "A".into(),
+                        date,
+                        amount_cents: 1
+                    }
+                )
+                .await,
             Err(CycleError::Forbidden)
         ));
         assert!(matches!(
@@ -173,7 +210,17 @@ mod tests {
         for (description, amount) in [("", 1), ("A", 0), ("A", -1)] {
             assert!(matches!(
                 service
-                    .create(&writer, cycle, envelope, description, date, amount)
+                    .create(
+                        &writer,
+                        cycle,
+                        envelope,
+                        ExpenseInput {
+                            account_id: Uuid::new_v4(),
+                            description: description.into(),
+                            date,
+                            amount_cents: amount
+                        }
+                    )
                     .await,
                 Err(CycleError::Invalid)
             ));
@@ -189,7 +236,19 @@ mod tests {
             Err(CycleError::Forbidden)
         ));
         assert!(matches!(
-            service.create(&reader, cycle, envelope, "A", date, 1).await,
+            service
+                .create(
+                    &reader,
+                    cycle,
+                    envelope,
+                    ExpenseInput {
+                        account_id: Uuid::new_v4(),
+                        description: "A".into(),
+                        date,
+                        amount_cents: 1
+                    }
+                )
+                .await,
             Err(CycleError::Forbidden)
         ));
         assert!(matches!(
@@ -198,7 +257,17 @@ mod tests {
         ));
         assert!(repo.0.lock().unwrap().is_empty());
         service
-            .create(&writer, cycle, envelope, "A", date, 1)
+            .create(
+                &writer,
+                cycle,
+                envelope,
+                ExpenseInput {
+                    account_id: Uuid::new_v4(),
+                    description: "A".into(),
+                    date,
+                    amount_cents: 1,
+                },
+            )
             .await
             .unwrap();
         assert!(matches!(

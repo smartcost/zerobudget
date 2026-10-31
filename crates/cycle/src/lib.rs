@@ -27,6 +27,10 @@ pub enum CycleError {
     InvalidState,
     #[error("insufficient envelope balance")]
     InsufficientFunds,
+    #[error("insufficient account balance")]
+    AccountInsufficientFunds,
+    #[error("account balance exceeds integer limit")]
+    BalanceOverflow,
     #[error("budget storage unavailable")]
     Unavailable,
 }
@@ -246,4 +250,4 @@ mod lifecycle_tests {
 }
 
 mod expense;
-pub use expense::{BudgetExpense, ExpenseRepository, ExpenseService};
+pub use expense::{BudgetExpense, ExpenseInput, ExpenseRepository, ExpenseService, FundedExpense};

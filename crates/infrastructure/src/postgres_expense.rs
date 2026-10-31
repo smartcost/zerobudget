@@ -3,7 +3,7 @@ use crate::{
     Database,
 };
 use async_trait::async_trait;
-use obz_cycle::{BudgetExpense, CycleError, CycleStatus, ExpenseRepository};
+use obz_cycle::{BudgetExpense, CycleError, CycleStatus, ExpenseRepository, FundedExpense};
 use obz_domain::{
     cycle::BudgetPeriod,
     expense::{Expense, Spending},
@@ -12,7 +12,7 @@ use obz_domain::{
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
-const READ: &str = "SELECT x.id,x.cycle_id,x.envelope_id,x.description,x.amount_cents,
+const READ: &str = "SELECT x.id,x.cycle_id,x.envelope_id,x.description,x.amount_cents,x.account_id,
     (x.occurred_on-DATE '0001-01-01'+1) AS day,
     EXISTS(SELECT 1 FROM budgeting.expense_reversals r WHERE r.expense_id=x.id) AS reversed
     FROM budgeting.expenses x WHERE x.owner_id=$1 AND x.cycle_id=$2 AND x.envelope_id=$3
@@ -27,6 +27,7 @@ fn decode(row: sqlx::postgres::PgRow) -> Result<BudgetExpense, StorageError> {
     .map_err(|_| CycleError::Unavailable)?;
     Ok(BudgetExpense {
         id: row.try_get("id")?,
+        account_id: row.try_get("account_id")?,
         cycle_id: row.try_get("cycle_id")?,
         envelope_id: row.try_get("envelope_id")?,
         expense,
@@ -143,16 +144,20 @@ impl ExpenseRepository for PostgresExpenseRepository {
         cycle: Uuid,
         envelope: Uuid,
         id: Uuid,
-        expense: Expense,
+        funded: FundedExpense,
     ) -> Result<BudgetExpense, CycleError> {
         self.bounded(async {
             let (mut tx,period,balance)=self.locked(owner,cycle,envelope).await?;
+            let expense=funded.expense;
+            let account_id=funded.account_id;
+            let found:Option<Uuid>=sqlx::query_scalar("SELECT id FROM banking.accounts WHERE id=$1 AND owner_id=$2").bind(account_id).bind(owner).fetch_optional(&mut *tx).await?;
+            if found.is_none(){return Err(CycleError::NotFound.into());}
             expense.validate_period(period).map_err(domain)?;
             balance.record(CycleStatus::Active,expense.amount()).map_err(domain)?;
             let date=sqlx::types::chrono::NaiveDate::from_num_days_from_ce_opt(expense.day()).ok_or(CycleError::Invalid)?;
-            sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents) VALUES($1,$2,$3,$4,$5,$6,$7)")
-                .bind(id).bind(cycle).bind(envelope).bind(owner).bind(expense.description()).bind(date).bind(expense.amount().to_cents()).execute(&mut *tx).await?;
-            tx.commit().await?; Ok(BudgetExpense { id,cycle_id:cycle,envelope_id:envelope,expense,reversed:false })
+            sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents,account_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)")
+                .bind(id).bind(cycle).bind(envelope).bind(owner).bind(expense.description()).bind(date).bind(expense.amount().to_cents()).bind(account_id).execute(&mut *tx).await?;
+            tx.commit().await?; Ok(BudgetExpense { id,cycle_id:cycle,envelope_id:envelope,expense,reversed:false,account_id:Some(account_id) })
         }).await
     }
     async fn list(
