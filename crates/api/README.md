@@ -217,3 +217,11 @@ Postman, ambiente local e roteiro para testar a API sem código no console.
 
 Para a regressão completa sem cópia de cookies, use `./scripts/e2e test`.
 Consulte o [guia Playwright E2E/MCP](../../docs/api/e2e.md).
+
+## Ativação e fechamento
+
+`POST /api/cycles/{id}/activate` exige renda totalmente alocada e confirma o
+planejamento. `POST /api/cycles/{id}/close` fecha um ciclo ativo definitivamente.
+Ambas exigem `budget:write` e CSRF e retornam 200 com o ciclo atualizado; repetir
+a mesma transição é idempotente. Envelopes ficam congelados a partir da ativação.
+Consulte [ciclo de vida](../../docs/ciclo-de-vida.md) para migração e testes.

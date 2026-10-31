@@ -113,7 +113,7 @@ O primeiro login não concede direitos financeiros. As operações exigem:
 | Tipo | Permissão |
 | --- | --- |
 | Listar/consultar ciclos e envelopes | `budget:read` |
-| Criar ciclos e criar/alterar/remover envelopes | `budget:write` |
+| Criar/ativar/fechar ciclos e criar/alterar/remover envelopes | `budget:write` |
 
 Use o UUID local retornado por **Consultar sessão**, não o subject do Dex. Se
 necessário, o operador pode conceder os direitos para o usuário local de teste:
@@ -156,7 +156,7 @@ pela alteração e remoção manuais. Essas operações persistem suas alteraç�
 ## Executar o roteiro de envelopes
 
 Pré-requisitos: API atualizada, cookie válido, ambiente selecionado, permissões
-read/write e `cycle_id` próprio com ao menos 2 centavos disponíveis. Use um ciclo
+read/write e `cycle_id` próprio em estado `planned` com ao menos 2 centavos disponíveis. Use um ciclo
 de teste sem outras edições durante a execução.
 
 1. Selecione **02 - Validar envelopes (Runner)** e clique em **Run**.
@@ -240,3 +240,20 @@ Consulte também [identidades](../identidades-e-permissoes.md),
 Veja o [plano com Playwright MCP e Playwright Test](plano-e2e-playwright.md) para
 autenticação automática, ambiente descartável e regressão executável por comando.
 A implementação e os comandos estão no [guia E2E](e2e.md).
+
+## Ativar e fechar um orçamento
+
+Na pasta de operações manuais, **Ativar ciclo** e **Fechar ciclo** usam `cycle_id`,
+a sessão e o CSRF já capturados. Não há corpo. Ative somente depois de distribuir
+toda a renda: envelopes ficam congelados na ativação e o fechamento é definitivo.
+As consultas continuam funcionando. HTTP 409 indica saldo não distribuído ou
+estado incompatível; repetir a mesma transição retorna 200.
+
+O Runner de envelopes precisa de um ciclo `planned`. Use o E2E para testar o
+ciclo de vida automaticamente, com dados descartáveis:
+
+```sh
+./scripts/e2e test lifecycle
+```
+
+Regras e privilégios: [ciclo de vida](../ciclo-de-vida.md).

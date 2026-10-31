@@ -1,7 +1,7 @@
 # Ciclos planejados
 
-Esta etapa cria, lista e consulta ciclos de orçamento em BRL. Não ativa ciclos nem
-registra movimentações. A distribuição por envelopes é descrita em
+A API cria, lista e consulta ciclos de orçamento em BRL. Ativação e fechamento
+são descritos em [ciclo de vida](ciclo-de-vida.md); movimentações ainda não existem. A distribuição por envelopes é descrita em
 [envelopes e alocação](envelopes.md). A renda é um inteiro de centavos
 não negativo; inicialmente o valor alocado é zero e todo o saldo está disponível.
 O domínio usa `Money` com aritmética verificada.
@@ -22,7 +22,8 @@ Em desenvolvimento local, AUTH_ALLOW_LOCAL_HTTP=true permite a conexão sem TLS
 somente ao endereço de loopback. A API continua recebendo apenas DATABASE_URL do
 papel runtime e nunca executa migrações automaticamente. O novo comando concede
 USAGE no schema budgeting, SELECT em cycles e INSERT somente em id, owner_id,
-period_start, period_end e income_cents. Não concede UPDATE nem DELETE.
+period_start, period_end e income_cents. A etapa de ciclo de vida acrescenta
+UPDATE somente de status, sujeito a RLS e trigger; DELETE continua proibido.
 O antigo auth_admin continua administrando as permissões de usuários; seu comando
 migrate aplica o histórico compartilhado, mas só concede privilégios do schema auth.
 Use o comando acima para preparar todos os privilégios da aplicação.
@@ -40,6 +41,8 @@ X-CSRF-Token obtido de /api/auth/me e obedece à validação de origem já exist
 | POST /api/cycles | budget:write | 201 com ciclo planejado |
 | GET /api/cycles?limit=20&offset=0 | budget:read | Lista dos próprios ciclos |
 | GET /api/cycles/{uuid} | budget:read | Ciclo do usuário ou 404 |
+| POST /api/cycles/{uuid}/activate | budget:write | 200 com ciclo ativo, se totalmente alocado |
+| POST /api/cycles/{uuid}/close | budget:write | 200 com ciclo fechado, se ativo |
 
 Corpo de criação:
 

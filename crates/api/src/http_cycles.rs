@@ -2,7 +2,7 @@ use crate::{ApiError, AppState, Authenticated};
 use axum::{
     extract::{DefaultBodyLimit, Path, Query, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use chrono::NaiveDate;
@@ -14,6 +14,8 @@ pub(crate) fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/cycles", get(list).post(create))
         .route("/api/cycles/{id}", get(find))
+        .route("/api/cycles/{id}/activate", post(activate))
+        .route("/api/cycles/{id}/close", post(close))
         .layer(DefaultBodyLimit::max(4096))
 }
 #[derive(Deserialize)]
@@ -44,7 +46,7 @@ impl From<BudgetCycle> for CycleResponse {
             allocated_cents: c.allocated_cents,
             available_cents: c.available_cents,
             currency: "BRL",
-            status: "planned",
+            status: c.status.as_str(),
         }
     }
 }
@@ -64,6 +66,13 @@ impl From<CycleError> for ApiError {
             CycleError::Conflict => {
                 Self(StatusCode::CONFLICT, "cycle already exists for this period")
             }
+            CycleError::Unallocated => {
+                Self(StatusCode::CONFLICT, "cycle income is not fully allocated")
+            }
+            CycleError::InvalidState => Self(
+                StatusCode::CONFLICT,
+                "operation not allowed in the current cycle status",
+            ),
             CycleError::Unavailable => Self(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "budget storage unavailable",
@@ -129,6 +138,26 @@ async fn find(
 ) -> Result<Json<CycleResponse>, ApiError> {
     auth.require(obz_auth::Permission::ReadBudget)?;
     Ok(Json(repository(&state)?.get(&auth.user, id).await?.into()))
+}
+async fn activate(
+    auth: Authenticated,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<CycleResponse>, ApiError> {
+    auth.require(obz_auth::Permission::WriteBudget)?;
+    Ok(Json(
+        repository(&state)?.activate(&auth.user, id).await?.into(),
+    ))
+}
+async fn close(
+    auth: Authenticated,
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<CycleResponse>, ApiError> {
+    auth.require(obz_auth::Permission::WriteBudget)?;
+    Ok(Json(
+        repository(&state)?.close(&auth.user, id).await?.into(),
+    ))
 }
 #[cfg(test)]
 mod tests {

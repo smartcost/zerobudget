@@ -600,3 +600,94 @@ async fn envelopes_support_zero_income_and_maximum_integer_without_overflow() {
     );
     s.db.destroy().await;
 }
+
+async fn lifecycle_sql(s: &Setup, statement: &str) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
+    let mut tx = s.runtime.pool().begin().await.unwrap();
+    sqlx::query("SELECT set_config('zerobudget.user_id',$1,true)").bind(s.user.to_string()).execute(&mut *tx).await.unwrap();
+    let result=sqlx::query(statement).bind(s.cycle).bind(s.user).execute(&mut *tx).await;
+    if result.is_ok() { tx.commit().await.unwrap(); } else { tx.rollback().await.unwrap(); }
+    result
+}
+fn sqlstate(error: sqlx::Error) -> String {
+    error.as_database_error().unwrap().code().unwrap().into_owned()
+}
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL databases"]
+async fn lifecycle_sql_enforces_transitions_frozen_allocations_and_minimal_privileges() {
+    let s=Setup::new(100).await;
+    s.grant_read().await;
+    assert_eq!(sqlstate(lifecycle_sql(&s,"UPDATE budgeting.cycles SET status='active' WHERE id=$1 AND owner_id=$2").await.unwrap_err()),"ZB001");
+    assert_eq!(sqlstate(lifecycle_sql(&s,"UPDATE budgeting.cycles SET status='closed' WHERE id=$1 AND owner_id=$2").await.unwrap_err()),"ZB002");
+    for statement in [
+        "UPDATE budgeting.cycles SET income_cents=0 WHERE id=$1 AND owner_id=$2",
+        "UPDATE budgeting.cycles SET owner_id=owner_id WHERE id=$1 AND owner_id=$2",
+        "UPDATE budgeting.cycles SET period_start=period_start WHERE id=$1 AND owner_id=$2",
+        "DELETE FROM budgeting.cycles WHERE id=$1 AND owner_id=$2",
+    ] { assert_eq!(sqlstate(lifecycle_sql(&s,statement).await.unwrap_err()),"42501"); }
+    // No user context means no UPDATE, even without a WHERE-owner predicate.
+    assert_eq!(sqlx::query("UPDATE budgeting.cycles SET status='active' WHERE id=$1")
+        .bind(s.cycle).execute(s.runtime.pool()).await.unwrap().rows_affected(),0);
+    let mut other = Fixture::new(false, 300).await;
+    other.state.users = Arc::new(PostgresIdentityRepository::from_database(&s.runtime));
+    let (cookie, _) = other.authenticate().await;
+    let other_user: Uuid = me_data(&other, &cookie).await["user_id"].as_str().unwrap().parse().unwrap();
+    PostgresIdentityRepository::from_database(&s.owner).grant(other_user, WriteBudget).await.unwrap();
+    let mut tx = s.runtime.pool().begin().await.unwrap();
+    sqlx::query("SELECT set_config('zerobudget.user_id',$1,true)").bind(other_user.to_string()).execute(&mut *tx).await.unwrap();
+    assert_eq!(sqlx::query("UPDATE budgeting.cycles SET status='active' WHERE id=$1")
+        .bind(s.cycle).execute(&mut *tx).await.unwrap().rows_affected(), 0);
+    tx.rollback().await.unwrap();
+    let mut tx = s.runtime.pool().begin().await.unwrap();
+    sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ").execute(&mut *tx).await.unwrap();
+    sqlx::query("SELECT set_config('zerobudget.user_id',$1,true)").bind(s.user.to_string()).execute(&mut *tx).await.unwrap();
+    assert_eq!(sqlstate(sqlx::query("UPDATE budgeting.cycles SET status='planned' WHERE id=$1")
+        .bind(s.cycle).execute(&mut *tx).await.unwrap_err()), "25000");
+    tx.rollback().await.unwrap();
+    assert_eq!(s.write("POST",&s.path(),json!({"name":"Full","allocated_cents":100})).await.status(),StatusCode::CREATED);
+    lifecycle_sql(&s,"UPDATE budgeting.cycles SET status='active' WHERE id=$1 AND owner_id=$2").await.unwrap();
+    for status in ["active","closed"] {
+        if status=="closed" { lifecycle_sql(&s,"UPDATE budgeting.cycles SET status='closed' WHERE id=$1 AND owner_id=$2").await.unwrap(); }
+        for statement in [
+            "INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES(gen_random_uuid(),$1,$2,'Zero',0)",
+            "UPDATE budgeting.envelopes SET name='Renamed' WHERE cycle_id=$1 AND owner_id=$2",
+            "UPDATE budgeting.envelopes SET allocated_cents=0 WHERE cycle_id=$1 AND owner_id=$2",
+            "DELETE FROM budgeting.envelopes WHERE cycle_id=$1 AND owner_id=$2",
+            "UPDATE budgeting.cycles SET status='planned' WHERE id=$1 AND owner_id=$2",
+        ] { assert_eq!(sqlstate(lifecycle_sql(&s,statement).await.unwrap_err()),"ZB002"); }
+        s.balance(100,0).await;
+        assert_eq!(s.read(&s.path()).await.status(),StatusCode::OK);
+    }
+    assert_eq!(sqlstate(lifecycle_sql(&s,"UPDATE budgeting.cycles SET status='active' WHERE id=$1 AND owner_id=$2").await.unwrap_err()),"ZB002");
+    s.db.destroy().await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL databases"]
+async fn lifecycle_and_envelope_writes_serialize_in_both_lock_orders() {
+    use obz_cycle::{CycleRepository, CycleTransition};
+    let s=Setup::new(100).await;
+    s.grant_read().await;
+    let created=json(s.write("POST",&s.path(),json!({"name":"Full","allocated_cents":100})).await).await;
+    let id:Uuid=created["id"].as_str().unwrap().parse().unwrap();
+    let mut tx=s.runtime.pool().begin().await.unwrap();
+    sqlx::query("SELECT set_config('zerobudget.user_id',$1,true)").bind(s.user.to_string()).execute(&mut *tx).await.unwrap();
+    sqlx::query("DELETE FROM budgeting.envelopes WHERE id=$1").bind(id).execute(&mut *tx).await.unwrap();
+    let repository=PostgresCycleRepository::new(s.runtime.clone()); let user=s.user; let cycle=s.cycle;
+    let mut activation=tokio::spawn(async move { repository.transition(user,cycle,CycleTransition::Activate).await });
+    assert!(tokio::time::timeout(std::time::Duration::from_millis(100),&mut activation).await.is_err());
+    tx.commit().await.unwrap();
+    assert!(matches!(activation.await.unwrap(),Err(CycleError::Unallocated)));
+    s.balance(0,100).await;
+    let created=json(s.write("POST",&s.path(),json!({"name":"Full","allocated_cents":100})).await).await;
+    let id:Uuid=created["id"].as_str().unwrap().parse().unwrap();
+    let mut tx=s.runtime.pool().begin().await.unwrap();
+    sqlx::query("SELECT set_config('zerobudget.user_id',$1,true)").bind(s.user.to_string()).execute(&mut *tx).await.unwrap();
+    sqlx::query("UPDATE budgeting.cycles SET status='active' WHERE id=$1").bind(s.cycle).execute(&mut *tx).await.unwrap();
+    let envelopes=PostgresEnvelopeRepository::new(s.runtime.clone());
+    let mut deletion=tokio::spawn(async move { obz_cycle::EnvelopeRepository::delete(&envelopes,user,cycle,id).await });
+    assert!(tokio::time::timeout(std::time::Duration::from_millis(100),&mut deletion).await.is_err());
+    tx.commit().await.unwrap();
+    assert!(matches!(deletion.await.unwrap(),Err(CycleError::InvalidState)));
+    s.balance(100,0).await;
+    s.db.destroy().await;
+}

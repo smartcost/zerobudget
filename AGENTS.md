@@ -11,8 +11,8 @@ etapas pequenas, com regras de negócio verificáveis e isolamento entre usuári
 Não amplie a etapa em andamento para funcionalidades futuras sem necessidade.
 
 Atualmente há autenticação de usuários pelo Dex, sessões no servidor, permissões
-locais, ciclos planejados e envelopes com alocação limitada à renda. Autenticação
-entre serviços, movimentações e ativação de ciclos não estão implementados. Não trate
+locais, ciclos planejados/ativos/fechados e envelopes com alocação limitada à renda.
+Autenticação entre serviços e movimentações não estão implementadas. Não trate
 propostas de documentação como funcionalidades entregues.
 
 ## Arquitetura e dependências
@@ -44,6 +44,9 @@ propostas de documentação como funcionalidades entregues.
   `Money::checked_add` e `Money::checked_sub`; seus valores internos são privados.
 - Ciclos planejados começam sem alocação. Depois, o disponível é a renda menos
   a soma dos envelopes. A soma não pode exceder a renda, inclusive sob concorrência.
+  A ativação exige saldo zero e congela o planejamento; somente ciclos ativos
+  podem ser fechados, sem reabertura. As transições são idempotentes e usam o
+  mesmo bloqueio por ciclo das mutações de envelopes.
   O fim do período é exclusivo. Mudar esses contratos exige regra explícita e testes.
 
 ## Autenticação, autorização e isolamento

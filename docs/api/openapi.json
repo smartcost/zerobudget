@@ -478,7 +478,7 @@
             "$ref": "#/components/responses/422"
           }
         },
-        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada.",
+        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada. Permitido somente enquanto o ciclo estiver planned; active e closed retornam 409 sem alterar envelopes.",
         "parameters": [
           {
             "$ref": "#/components/parameters/Csrf"
@@ -548,7 +548,7 @@
             "$ref": "#/components/responses/422"
           }
         },
-        "description": "Exige budget:read. Proprietário determinado pela sessão autenticada. Ordem por UUID crescente. Paginação por offset pode mudar entre consultas concorrentes.",
+        "description": "Exige budget:read. Proprietário determinado pela sessão autenticada. Ordem por UUID crescente. Paginação por offset pode mudar entre consultas concorrentes. Disponível em todos os estados do ciclo.",
         "parameters": [
           {
             "$ref": "#/components/parameters/Limit"
@@ -627,7 +627,7 @@
             "$ref": "#/components/responses/422"
           }
         },
-        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada. Ao menos um campo. Omitido preserva o valor; null é inválido. Reduções liberam saldo. A soma não pode exceder a renda, inclusive sob concorrência.",
+        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada. Ao menos um campo. Omitido preserva o valor; null é inválido. Reduções liberam saldo. A soma não pode exceder a renda, inclusive sob concorrência. Permitido somente enquanto o ciclo estiver planned; active e closed retornam 409 sem alterar envelopes.",
         "parameters": [
           {
             "$ref": "#/components/parameters/Csrf"
@@ -684,7 +684,7 @@
             "$ref": "#/components/responses/404"
           }
         },
-        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada.",
+        "description": "Exige budget:write. Proprietário determinado pela sessão autenticada. Permitido somente enquanto o ciclo estiver planned; active e closed retornam 409 sem alterar envelopes.",
         "parameters": [
           {
             "$ref": "#/components/parameters/Csrf"
@@ -714,6 +714,152 @@
           }
         }
       ]
+    },
+    "/api/cycles/{cycle_id}/activate": {
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "activateCycle",
+        "summary": "Ativar ciclo",
+        "tags": [
+          "Ciclos"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ativar ciclo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          }
+        },
+        "description": "Exige budget:write e X-CSRF-Token. Sem corpo. Proprietário vem da sessão. Exige toda a renda alocada. planned → active; repetir active retorna 200; closed retorna 409. Transição e mutações de envelopes são serializadas por ciclo.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ]
+      }
+    },
+    "/api/cycles/{cycle_id}/close": {
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "closeCycle",
+        "summary": "Fechar ciclo",
+        "tags": [
+          "Ciclos"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fechar ciclo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          }
+        },
+        "description": "Exige budget:write e X-CSRF-Token. Sem corpo. Proprietário vem da sessão. active → closed; repetir closed retorna 200; planned retorna 409. Não reabre nem registra movimentações. Transição e mutações de envelopes são serializadas por ciclo.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -847,8 +993,11 @@
           "status": {
             "type": "string",
             "enum": [
-              "planned"
-            ]
+              "planned",
+              "active",
+              "closed"
+            ],
+            "description": "Planejamento editável; ativo exige saldo zero e congela os envelopes; fechado é definitivo e somente leitura. Renda zero pode ser ativada sem envelopes."
           }
         },
         "required": [
@@ -1039,7 +1188,7 @@
         }
       },
       "409": {
-        "description": "Período ou nome duplicado, ou alocação acima da renda.",
+        "description": "Conflito: período ou nome duplicado, excesso de alocação, renda ainda não distribuída ou operação incompatível com o estado do ciclo.",
         "content": {
           "application/json": {
             "schema": {

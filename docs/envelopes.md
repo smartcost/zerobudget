@@ -6,7 +6,8 @@ O roteiro de console abaixo permanece como alternativa.
 
 Um envelope representa uma finalidade para o dinheiro de um ciclo: moradia,
 alimentação ou reserva, por exemplo. Ele não representa uma conta bancária.
-Esta etapa permite planejar a distribuição; não registra gastos nem ativa ciclos.
+Os envelopes planejam a distribuição, sem registrar gastos. A [ativação do
+ciclo](ciclo-de-vida.md) confirma o planejamento e bloqueia novas alterações.
 
 ## Regras e contrato
 
@@ -20,8 +21,9 @@ Esta etapa permite planejar a distribuição; não registra gastos nem ativa cic
 - `GET /api/cycles` e `GET /api/cycles/{id}` agora calculam `allocated_cents` e
   `available_cents` a partir das alocações persistidas. A criação ainda retorna
   alocado zero e disponível igual à renda.
-- Não há edição da renda, contas financeiras, gastos, histórico de alterações,
-  ativação ou fechamento nesta etapa.
+- Criação, edição e remoção só são permitidas em ciclos `planned`; em `active`
+  e `closed`, retornam 409. A leitura permanece disponível com `budget:read`.
+- Não há edição da renda, contas financeiras, gastos ou histórico de alterações.
 
 | Método | Rota | Permissão | Sucesso |
 | --- | --- | --- | --- |
@@ -54,7 +56,7 @@ consultas quando há criações ou remoções concorrentes.
 As mutações exigem `X-CSRF-Token` e mantêm a validação de origem da API. Acesso
 sem sessão retorna 401; sem permissão ou CSRF, 403. Ciclo ou envelope inexistente,
 de outro proprietário ou pertencente a outro ciclo retorna 404. Nome repetido ou
-alocação acima da renda retorna 409. Entradas inválidas retornam 422, corpo maior
+alocação acima da renda ou mutação em ciclo ativo/fechado retorna 409. Entradas inválidas retornam 422, corpo maior
 que 4096 bytes retorna 413, e indisponibilidade retorna 503. IDs e query strings
 malformados seguem as rejeições 400 do Axum.
 
@@ -93,7 +95,8 @@ Forneça `DATABASE_ADMIN_URL` somente ao processo administrativo e
 `AUTH_ALLOW_LOCAL_HTTP=true`. Além dos privilégios anteriores, a ferramenta
 concede em `budgeting.envelopes`: SELECT, DELETE, INSERT de id/cycle_id/owner_id/
 name/allocated_cents e UPDATE somente de name/allocated_cents. Não concede novos
-direitos financeiros a usuários nem UPDATE/DELETE em ciclos.
+direitos financeiros a usuários. A migração de ciclo de vida concede UPDATE
+somente de status em ciclos; DELETE de ciclos continua proibido.
 
 ## Roteiro manual no navegador
 
@@ -103,7 +106,7 @@ explícitas `budget:read` e `budget:write`; use a CLI administrativa documentada
 no guia de identidades. Não publique cookies nem tokens de sessão.
 
 Na página `/auth/session`, execute no console, substituindo `ID_DO_CICLO` por um
-ciclo seu que tenha saldo disponível de pelo menos R$ 2.000:
+ciclo seu em estado `planned` que tenha saldo disponível de pelo menos R$ 2.000:
 
 ```js
 (async () => {

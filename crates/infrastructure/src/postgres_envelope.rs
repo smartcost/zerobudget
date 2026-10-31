@@ -1,3 +1,4 @@
+use crate::budget_storage_error::{sql_error, StorageError};
 use crate::Database;
 use async_trait::async_trait;
 use obz_cycle::{BudgetEnvelope, CycleError, EnvelopePatch, EnvelopeRepository};
@@ -8,27 +9,6 @@ use obz_domain::{
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
-#[derive(Debug, thiserror::Error)]
-enum StorageError {
-    #[error(transparent)]
-    Sql(#[from] sqlx::Error),
-    #[error(transparent)]
-    Application(#[from] CycleError),
-}
-pub(crate) fn sql_error(error: sqlx::Error) -> CycleError {
-    let Some(db) = error.as_database_error() else {
-        return CycleError::Unavailable;
-    };
-    match db.code().as_deref() {
-        Some("23505") if db.constraint() == Some("envelopes_cycle_name_key") => {
-            CycleError::DuplicateEnvelope
-        }
-        Some("23505") => CycleError::Conflict,
-        Some("42501") => CycleError::Forbidden,
-        Some("P0001") => CycleError::Overallocated,
-        _ => CycleError::Unavailable,
-    }
-}
 fn domain_error(error: obz_domain::DomainError) -> CycleError {
     match error {
         obz_domain::DomainError::EnvelopeOverbudget => CycleError::Overallocated,
@@ -107,11 +87,22 @@ impl PostgresEnvelopeRepository {
         tx: &mut Transaction<'_, Postgres>,
         owner: Uuid,
         cycle: Uuid,
-    ) -> Result<Money, StorageError> {
-        let income:Option<i64>=sqlx::query_scalar("SELECT income_cents FROM budgeting.cycles WHERE id=$1 AND owner_id=$2 AND status='planned'").bind(cycle).bind(owner).fetch_optional(&mut **tx).await?;
-        Money::from_cents(income.ok_or(CycleError::NotFound)?)
-            .map_err(|_| CycleError::Unavailable.into())
+    ) -> Result<(Money, obz_cycle::CycleStatus), StorageError> {
+        let row = sqlx::query(
+            "SELECT income_cents,status FROM budgeting.cycles WHERE id=$1 AND owner_id=$2",
+        )
+        .bind(cycle)
+        .bind(owner)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(CycleError::NotFound)?;
+        Ok((
+            Money::from_cents(row.try_get("income_cents")?).map_err(|_| CycleError::Unavailable)?,
+            obz_cycle::CycleStatus::try_from(row.try_get::<&str, _>("status")?)
+                .map_err(|_| CycleError::Unavailable)?,
+        ))
     }
+
     async fn locked(
         &self,
         owner: Uuid,
@@ -119,7 +110,10 @@ impl PostgresEnvelopeRepository {
     ) -> Result<(Transaction<'static, Postgres>, Allocation), StorageError> {
         let mut tx = self.transaction(owner).await?;
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('zerobudget.envelopes:'||$1::uuid::text,0))").bind(cycle).execute(&mut *tx).await?;
-        let income = Self::parent(&mut tx, owner, cycle).await?;
+        let (income, status) = Self::parent(&mut tx, owner, cycle).await?;
+        if status != obz_cycle::CycleStatus::Planned {
+            return Err(CycleError::InvalidState.into());
+        }
         let total:i64=sqlx::query_scalar("SELECT COALESCE(sum(allocated_cents),0)::bigint FROM budgeting.envelopes WHERE owner_id=$1 AND cycle_id=$2").bind(owner).bind(cycle).fetch_one(&mut *tx).await?;
         let allocation = Allocation::new(
             income,

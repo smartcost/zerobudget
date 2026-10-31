@@ -352,6 +352,76 @@
               }
             }
           ]
+        },
+        {
+          "name": "Ativar ciclo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/activate",
+            "description": "Exige renda totalmente alocada e congela os envelopes. Repetir em ativo é idempotente; fechado retorna 409. Sessão com budget:write. Sem corpo. Execute Consultar sessão para capturar o CSRF."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token') || !pm.environment.get('cycle_id')) throw new Error('Consulte a sessão e selecione cycle_id antes de continuar.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code === 200) pm.test('Estado active', function () { pm.expect(pm.response.json().status).to.eql('active'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fechar ciclo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/close",
+            "description": "Exige ciclo ativo. Fechamento definitivo; repetir em fechado é idempotente. Sessão com budget:write. Sem corpo. Execute Consultar sessão para capturar o CSRF."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token') || !pm.environment.get('cycle_id')) throw new Error('Consulte a sessão e selecione cycle_id antes de continuar.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code === 200) pm.test('Estado closed', function () { pm.expect(pm.response.json().status).to.eql('closed'); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

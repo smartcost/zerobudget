@@ -1511,6 +1511,15 @@ mod tests {
                 self.0.lock().unwrap().push(owner);
                 Ok(cycle)
             }
+            async fn transition(
+                &self,
+                owner: uuid::Uuid,
+                _: uuid::Uuid,
+                _: obz_cycle::CycleTransition,
+            ) -> Result<BudgetCycle, CycleError> {
+                self.0.lock().unwrap().push(owner);
+                Err(CycleError::NotFound)
+            }
             async fn read(
                 &self,
                 owner: uuid::Uuid,

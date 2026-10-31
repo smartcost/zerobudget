@@ -1,4 +1,5 @@
 //! PostgreSQL adapters, connection configuration and trusted administration.
+mod budget_storage_error;
 mod database;
 mod postgres_cycle;
 mod postgres_identity;

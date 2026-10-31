@@ -153,7 +153,7 @@ exemplo não é interpretado automaticamente por todos os aplicativos.
 
 ## Cobertura e contrato
 
-Os 16 cenários iniciais cobrem:
+Os 22 cenários cobrem:
 
 - login/callback/PKCE, cookies HttpOnly, sessão e logout;
 - ausência de sessão e bearer arbitrário recusado;
@@ -161,6 +161,9 @@ Os 16 cenários iniciais cobrem:
 - ciclos e CRUD de envelopes com valores, nomes e períodos inválidos;
 - CSRF e origem, erros JSON e texto, limites de corpo;
 - dois usuários reais e tentativas de trocar o ciclo de um envelope;
+- ativação com saldo zero, fechamento definitivo e transições idempotentes;
+- congelamento dos envelopes em ciclos ativos/fechados e leitura preservada;
+- autorização/CSRF das transições e disputa entre ativação e exclusão;
 - criações e alterações concorrentes disputando o saldo.
 
 As respostas de sucesso verificadas pelo cliente usam os schemas do
