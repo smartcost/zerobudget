@@ -20,6 +20,8 @@ pub(crate) fn sql_error(error: sqlx::Error) -> CycleError {
         Some("P0001") => CycleError::Overallocated,
         Some("ZB001") => CycleError::Unallocated,
         Some("ZB002") => CycleError::InvalidState,
+        Some("ZB003") => CycleError::InsufficientFunds,
+        Some("ZB004") => CycleError::Invalid,
         _ => CycleError::Unavailable,
     }
 }

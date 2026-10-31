@@ -61,6 +61,7 @@ impl Setup {
             .grant_runtime_role(&db.runtime_role)
             .await
             .unwrap();
+        obz_infrastructure::PostgresExpenseRepository::new(owner.clone()).grant_runtime_role(&db.runtime_role).await.unwrap();
         let runtime = Database::connect(DatabaseConfig::new(db.runtime_url.clone(), true))
             .await
             .unwrap();
@@ -72,6 +73,7 @@ impl Setup {
         fixture.state.envelopes = Some(EnvelopeService::new(Arc::new(
             PostgresEnvelopeRepository::new(runtime.clone()),
         )));
+        fixture.state.expenses = Some(obz_cycle::ExpenseService::new(Arc::new(obz_infrastructure::PostgresExpenseRepository::new(runtime.clone()))));
         let (cookie, csrf) = fixture.authenticate().await;
         let user = me_data(&fixture, &cookie).await["user_id"]
             .as_str()
@@ -691,3 +693,6 @@ async fn lifecycle_and_envelope_writes_serialize_in_both_lock_orders() {
     s.balance(100,0).await;
     s.db.destroy().await;
 }
+
+#[path = "expense_tests.rs"]
+mod expense_tests;

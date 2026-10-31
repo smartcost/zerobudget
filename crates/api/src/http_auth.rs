@@ -16,6 +16,7 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub(crate) expenses: Option<obz_cycle::ExpenseService>,
     pub(crate) envelopes: Option<obz_cycle::EnvelopeService>,
     pub(crate) cycles: Option<obz_cycle::CycleService>,
     auth: Arc<RwLock<Arc<DexAuth>>>,
@@ -35,12 +36,17 @@ impl AppState {
         Self {
             cycles: None,
             envelopes: None,
+            expenses: None,
             auth: Arc::new(RwLock::new(Arc::new(auth))),
             store,
             users,
             origin: origin.into(),
             secure: secure_cookies,
         }
+    }
+    pub fn with_expenses(mut self, expenses: obz_cycle::ExpenseService) -> Self {
+        self.expenses = Some(expenses);
+        self
     }
     pub fn with_envelopes(mut self, envelopes: obz_cycle::EnvelopeService) -> Self {
         self.envelopes = Some(envelopes);
@@ -94,6 +100,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/logout", post(logout))
         .merge(crate::http_cycles::routes())
         .merge(crate::http_envelopes::routes())
+        .merge(crate::http_expenses::routes())
         .with_state(state)
         .layer(middleware::from_fn(security_headers))
 }

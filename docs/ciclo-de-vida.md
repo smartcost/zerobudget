@@ -3,7 +3,8 @@
 O ciclo nasce `planned`: a renda é distribuída entre envelopes. A ativação confirma
 esse planejamento quando `available_cents=0`. O ciclo passa a `active`, com seus
 envelopes congelados, e pode então ser encerrado como `closed`. O fechamento é
-definitivo. As consultas continuam disponíveis nos três estados.
+definitivo. As consultas continuam disponíveis nos três estados. [Despesas e estornos](despesas.md)
+são permitidos apenas em ciclos ativos.
 
 | Estado atual | Ativar | Fechar | Alterar envelopes |
 | --- | --- | --- | --- |
@@ -12,8 +13,10 @@ definitivo. As consultas continuam disponíveis nos três estados.
 | `closed` | 409 | 200, sem mudança | 409 |
 
 Renda zero pode ser ativada sem envelopes. Não há restrição de um único ciclo
-ativo, ativação automática por data, reabertura ou edição da renda/período. Esta
-etapa não registra gastos, receitas realizadas nem transporta saldo entre ciclos.
+ativo, ativação automática por data, reabertura ou edição da renda/período.
+Despesas manuais são registradas na etapa de [execução](despesas.md). Não há
+receitas realizadas nem transporte de saldo entre ciclos. O fechamento permite
+saldo não gasto nos envelopes, que permanece consultável.
 Redistribuição durante a execução exigirá uma futura operação atômica própria.
 
 ## API

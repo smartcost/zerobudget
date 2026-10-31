@@ -73,6 +73,9 @@ impl From<CycleError> for ApiError {
                 StatusCode::CONFLICT,
                 "operation not allowed in the current cycle status",
             ),
+            CycleError::InsufficientFunds => {
+                Self(StatusCode::CONFLICT, "insufficient envelope balance")
+            }
             CycleError::Unavailable => Self(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "budget storage unavailable",
@@ -83,7 +86,7 @@ impl From<CycleError> for ApiError {
 fn repository(state: &AppState) -> Result<&CycleService, ApiError> {
     state.cycles.as_ref().ok_or(CycleError::Unavailable.into())
 }
-fn date(value: &str) -> Result<NaiveDate, ApiError> {
+pub(crate) fn date(value: &str) -> Result<NaiveDate, ApiError> {
     let date = NaiveDate::parse_from_str(value, "%Y-%m-%d").map_err(|_| CycleError::Invalid)?;
     if value.len() != 10 || date.format("%Y-%m-%d").to_string() != value {
         return Err(CycleError::Invalid.into());

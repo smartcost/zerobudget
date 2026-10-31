@@ -10,3 +10,6 @@ pub use postgres_identity::PostgresIdentityRepository;
 
 mod postgres_envelope;
 pub use postgres_envelope::PostgresEnvelopeRepository;
+
+mod postgres_expense;
+pub use postgres_expense::PostgresExpenseRepository;

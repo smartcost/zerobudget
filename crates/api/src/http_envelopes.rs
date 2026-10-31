@@ -50,6 +50,8 @@ struct EnvelopeResponse {
     cycle_id: Uuid,
     name: String,
     allocated_cents: i64,
+    spent_cents: i64,
+    remaining_cents: i64,
 }
 impl From<BudgetEnvelope> for EnvelopeResponse {
     fn from(record: BudgetEnvelope) -> Self {
@@ -58,6 +60,8 @@ impl From<BudgetEnvelope> for EnvelopeResponse {
             cycle_id: record.cycle_id,
             name: record.envelope.name().as_str().into(),
             allocated_cents: record.envelope.allocated().to_cents(),
+            spent_cents: record.spending.spent().to_cents(),
+            remaining_cents: record.spending.remaining().to_cents(),
         }
     }
 }

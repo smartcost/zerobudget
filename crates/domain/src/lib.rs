@@ -7,3 +7,5 @@ pub use errors::DomainError;
 pub mod cycle;
 
 pub mod envelope;
+
+pub mod expense;

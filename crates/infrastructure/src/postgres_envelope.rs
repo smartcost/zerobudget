@@ -24,6 +24,11 @@ fn decode(row: sqlx::postgres::PgRow) -> Result<BudgetEnvelope, StorageError> {
         id: row.try_get("id")?,
         cycle_id: row.try_get("cycle_id")?,
         envelope: Envelope::new(name, amount),
+        spending: obz_domain::expense::Spending::new(
+            amount,
+            Money::from_cents(row.try_get("spent_cents")?).map_err(|_| CycleError::Unavailable)?,
+        )
+        .map_err(|_| CycleError::Unavailable)?,
     })
 }
 #[derive(Clone)]
@@ -128,7 +133,7 @@ impl PostgresEnvelopeRepository {
         cycle: Uuid,
         id: Uuid,
     ) -> Result<BudgetEnvelope, StorageError> {
-        let row=sqlx::query("SELECT id,cycle_id,name,allocated_cents FROM budgeting.envelopes WHERE owner_id=$1 AND cycle_id=$2 AND id=$3").bind(owner).bind(cycle).bind(id).fetch_optional(&mut **tx).await?.ok_or(CycleError::NotFound)?;
+        let row=sqlx::query("SELECT id,cycle_id,name,allocated_cents,0::bigint AS spent_cents FROM budgeting.envelopes WHERE owner_id=$1 AND cycle_id=$2 AND id=$3").bind(owner).bind(cycle).bind(id).fetch_optional(&mut **tx).await?.ok_or(CycleError::NotFound)?;
         decode(row)
     }
 }
@@ -146,7 +151,7 @@ impl EnvelopeRepository for PostgresEnvelopeRepository {
             allocation.replace(Money::zero(),envelope.allocated()).map_err(domain_error)?;
             sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,$4,$5)").bind(id).bind(cycle).bind(owner).bind(envelope.name().as_str()).bind(envelope.allocated().to_cents()).execute(&mut *tx).await?;
             tx.commit().await?;
-            Ok(BudgetEnvelope{id,cycle_id:cycle,envelope})
+            Ok(BudgetEnvelope{id,cycle_id:cycle,spending:obz_domain::expense::Spending::new(envelope.allocated(),Money::zero()).map_err(|_| CycleError::Unavailable)?,envelope})
         }).await
     }
     async fn list(
@@ -159,7 +164,7 @@ impl EnvelopeRepository for PostgresEnvelopeRepository {
         self.bounded(async {
             let mut tx=self.transaction(owner).await?;
             Self::parent(&mut tx,owner,cycle).await?;
-            let rows=sqlx::query("SELECT id,cycle_id,name,allocated_cents FROM budgeting.envelopes WHERE owner_id=$1 AND cycle_id=$2 ORDER BY id LIMIT $3 OFFSET $4").bind(owner).bind(cycle).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
+            let rows=sqlx::query("SELECT e.id,e.cycle_id,e.name,e.allocated_cents,(SELECT COALESCE(sum(x.amount_cents),0)::bigint FROM budgeting.expenses x WHERE x.envelope_id=e.id AND x.cycle_id=e.cycle_id AND x.owner_id=e.owner_id AND NOT EXISTS(SELECT 1 FROM budgeting.expense_reversals r WHERE r.expense_id=x.id)) AS spent_cents FROM budgeting.envelopes e WHERE e.owner_id=$1 AND e.cycle_id=$2 ORDER BY e.id LIMIT $3 OFFSET $4").bind(owner).bind(cycle).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
             let records=rows.into_iter().map(decode).collect::<Result<Vec<_>,_>>()?;
             tx.commit().await?; Ok(records)
         }).await
@@ -178,7 +183,7 @@ impl EnvelopeRepository for PostgresEnvelopeRepository {
             allocation.replace(old.envelope.allocated(),envelope.allocated()).map_err(domain_error)?;
             let changed=sqlx::query("UPDATE budgeting.envelopes SET name=$4,allocated_cents=$5 WHERE owner_id=$1 AND cycle_id=$2 AND id=$3").bind(owner).bind(cycle).bind(id).bind(envelope.name().as_str()).bind(envelope.allocated().to_cents()).execute(&mut *tx).await?.rows_affected();
             if changed!=1 {return Err(CycleError::NotFound.into());}
-            tx.commit().await?; Ok(BudgetEnvelope{id,cycle_id:cycle,envelope})
+            tx.commit().await?; Ok(BudgetEnvelope{id,cycle_id:cycle,spending:obz_domain::expense::Spending::new(envelope.allocated(),Money::zero()).map_err(|_| CycleError::Unavailable)?,envelope})
         }).await
     }
     async fn delete(&self, owner: Uuid, cycle: Uuid, id: Uuid) -> Result<(), CycleError> {

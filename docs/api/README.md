@@ -14,7 +14,7 @@ Os testes e a captura de variáveis já estão incorporados à coleção version
 
 | Arquivo | Finalidade |
 | --- | --- |
-| [openapi.json](openapi.json) | Contrato OpenAPI 3.0.3 de saúde, autenticação, ciclos e envelopes |
+| [openapi.json](openapi.json) | Contrato OpenAPI 3.0.3 de saúde, autenticação, ciclos, envelopes e despesas |
 | [Coleção Postman](postman/zerobudget.postman_collection.json) | Operações manuais, validação de envelopes e logout separado |
 | [Ambiente local](postman/local.postman_environment.json) | Base URL e parâmetros de desenvolvimento, sem sessão ou credenciais exportadas |
 
@@ -112,8 +112,8 @@ O primeiro login não concede direitos financeiros. As operações exigem:
 
 | Tipo | Permissão |
 | --- | --- |
-| Listar/consultar ciclos e envelopes | `budget:read` |
-| Criar/ativar/fechar ciclos e criar/alterar/remover envelopes | `budget:write` |
+| Listar/consultar ciclos, envelopes e despesas | `budget:read` |
+| Criar/ativar/fechar ciclos, alterar envelopes, registrar/estornar despesas | `budget:write` |
 
 Use o UUID local retornado por **Consultar sessão**, não o subject do Dex. Se
 necessário, o operador pode conceder os direitos para o usuário local de teste:
@@ -257,3 +257,19 @@ ciclo de vida automaticamente, com dados descartáveis:
 ```
 
 Regras e privilégios: [ciclo de vida](../ciclo-de-vida.md).
+
+## Despesas manuais
+
+Após ativar um ciclo, use **Registrar despesa**, **Listar despesas** e **Estornar
+despesa** na pasta manual. Defina `cycle_id`, `envelope_id`, `expense_description`,
+`expense_date` e `expense_amount_cents`; criação bem-sucedida captura `expense_id`.
+A listagem de envelopes inclui os gastos e o saldo restante. O estorno preserva
+o original, requer ciclo ativo e devolve saldo uma única vez.
+
+Para regressão automática, com login e dados descartáveis:
+
+```sh
+./scripts/e2e test expenses
+```
+
+Regras, limites e persistência: [despesas e estornos](../despesas.md).

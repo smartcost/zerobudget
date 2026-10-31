@@ -13,6 +13,7 @@ pub struct BudgetEnvelope {
     pub id: Uuid,
     pub cycle_id: Uuid,
     pub envelope: Envelope,
+    pub spending: obz_domain::expense::Spending,
 }
 #[derive(Debug, Clone)]
 pub struct EnvelopePatch {
@@ -137,6 +138,8 @@ mod envelope_service_tests {
             Ok(BudgetEnvelope {
                 id,
                 cycle_id: cycle,
+                spending: obz_domain::expense::Spending::new(envelope.allocated(), Money::zero())
+                    .unwrap(),
                 envelope,
             })
         }

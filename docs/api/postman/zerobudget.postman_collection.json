@@ -422,6 +422,113 @@
               }
             }
           ]
+        },
+        {
+          "name": "Registrar despesa",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{envelope_id}}/expenses",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Ciclo ativo; data dentro do período; saldo suficiente. Gravação persistente. Após falha de transporte, consulte as despesas antes de repetir.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": {{expense_description_json}},\n  \"occurred_on\": \"{{expense_date}}\",\n  \"amount_cents\": {{expense_amount_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token') || !pm.environment.get('cycle_id') || !pm.environment.get('envelope_id')) throw new Error('Consulte a sessão e selecione cycle_id/envelope_id.');",
+                  "if (!pm.environment.get('expense_date')) throw new Error('Defina expense_date (YYYY-MM-DD dentro do ciclo).');",
+                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Despesa')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code === 201) { const value = pm.response.json(); pm.environment.set('expense_id', value.id); pm.test('Despesa registrada', function () { pm.expect(value.status).to.eql('posted'); }); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar despesas",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{envelope_id}}/expenses?limit=20&offset=0",
+            "header": [],
+            "description": "Exige budget:read. Inclui despesas estornadas e permanece disponível em ciclos fechados."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code === 200) pm.test('Lista de despesas', function () { pm.expect(pm.response.json()).to.be.an('array'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Estornar despesa",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{envelope_id}}/expenses/{{expense_id}}/reverse",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Ciclo ativo. Preserva o registro original e devolve o valor uma única vez. Repetir em ciclo ativo é idempotente; fechado retorna 409."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token') || !pm.environment.get('cycle_id') || !pm.environment.get('envelope_id')) throw new Error('Consulte a sessão e selecione cycle_id/envelope_id.');",
+                  "if (!pm.environment.get('expense_id')) throw new Error('Selecione expense_id.');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });",
+                  "if (pm.response.code === 200) pm.test('Despesa estornada', function () { pm.expect(pm.response.json().status).to.eql('reversed'); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

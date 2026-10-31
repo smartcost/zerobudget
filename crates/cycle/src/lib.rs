@@ -25,6 +25,8 @@ pub enum CycleError {
     Unallocated,
     #[error("operation not allowed in the current cycle status")]
     InvalidState,
+    #[error("insufficient envelope balance")]
+    InsufficientFunds,
     #[error("budget storage unavailable")]
     Unavailable,
 }
@@ -242,3 +244,6 @@ mod lifecycle_tests {
         );
     }
 }
+
+mod expense;
+pub use expense::{BudgetExpense, ExpenseRepository, ExpenseService};

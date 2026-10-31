@@ -12,6 +12,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     users.check_schema().await?;
     let envelopes = obz_infrastructure::PostgresEnvelopeRepository::new(database.clone());
     envelopes.check_schema().await?;
+    let expenses = obz_infrastructure::PostgresExpenseRepository::new(database.clone());
+    expenses.check_schema().await?;
     let cycles = obz_infrastructure::PostgresCycleRepository::new(database);
     cycles.check_schema().await?;
     let state = AppState::new(
@@ -22,7 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(users),
     )
     .with_cycles(obz_cycle::CycleService::new(Arc::new(cycles)))
-    .with_envelopes(obz_cycle::EnvelopeService::new(Arc::new(envelopes)));
+    .with_envelopes(obz_cycle::EnvelopeService::new(Arc::new(envelopes)))
+    .with_expenses(obz_cycle::ExpenseService::new(Arc::new(expenses)));
     let listener = tokio::net::TcpListener::bind(config.bind).await?;
     println!("ZeroBudget API listening on {}", listener.local_addr()?);
     let app = router(state.clone());

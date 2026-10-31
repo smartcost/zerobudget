@@ -225,3 +225,9 @@ planejamento. `POST /api/cycles/{id}/close` fecha um ciclo ativo definitivamente
 Ambas exigem `budget:write` e CSRF e retornam 200 com o ciclo atualizado; repetir
 a mesma transição é idempotente. Envelopes ficam congelados a partir da ativação.
 Consulte [ciclo de vida](../../docs/ciclo-de-vida.md) para migração e testes.
+
+## Despesas e estornos
+
+Consulte [despesas manuais](../../docs/despesas.md) para registro, listagem e
+estorno, saldos de envelopes e a migração `0005_expenses.sql`. A regressão isolada
+usa `./scripts/e2e test expenses`. Gastos não alteram a distribuição da renda.

@@ -6,7 +6,8 @@ O roteiro de console abaixo permanece como alternativa.
 
 Um envelope representa uma finalidade para o dinheiro de um ciclo: moradia,
 alimentação ou reserva, por exemplo. Ele não representa uma conta bancária.
-Os envelopes planejam a distribuição, sem registrar gastos. A [ativação do
+Os envelopes planejam a distribuição; [despesas manuais](despesas.md) registram
+a execução e atualizam o saldo para gastar. A [ativação do
 ciclo](ciclo-de-vida.md) confirma o planejamento e bloqueia novas alterações.
 
 ## Regras e contrato
@@ -23,7 +24,9 @@ ciclo](ciclo-de-vida.md) confirma o planejamento e bloqueia novas alterações.
   alocado zero e disponível igual à renda.
 - Criação, edição e remoção só são permitidas em ciclos `planned`; em `active`
   e `closed`, retornam 409. A leitura permanece disponível com `budget:read`.
-- Não há edição da renda, contas financeiras, gastos ou histórico de alterações.
+- A resposta inclui `spent_cents` (despesas não estornadas) e `remaining_cents`
+  (alocado menos gasto). A alocação permanece inalterada por despesas e estornos.
+- Não há edição da renda, contas financeiras ou histórico de alterações da alocação.
 
 | Método | Rota | Permissão | Sucesso |
 | --- | --- | --- | --- |
@@ -47,7 +50,7 @@ Alteração parcial (um ou ambos os campos):
 PATCH exige pelo menos um campo. Omitir um campo preserva o valor atual; `null`
 é inválido. Campos desconhecidos, incluindo proprietário, ciclo e ID, são
 rejeitados. Cada resposta de envelope contém `id`, `cycle_id`, `name` e
-`allocated_cents`.
+`allocated_cents`, `spent_cents` e `remaining_cents`.
 
 A listagem aceita `limit` (padrão 20, de 1 a 100) e `offset` (padrão zero, até
 100000), ordenada por UUID crescente. A paginação por offset pode mudar entre

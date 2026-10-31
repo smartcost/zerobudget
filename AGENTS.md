@@ -11,8 +11,8 @@ etapas pequenas, com regras de negócio verificáveis e isolamento entre usuári
 Não amplie a etapa em andamento para funcionalidades futuras sem necessidade.
 
 Atualmente há autenticação de usuários pelo Dex, sessões no servidor, permissões
-locais, ciclos planejados/ativos/fechados e envelopes com alocação limitada à renda.
-Autenticação entre serviços e movimentações não estão implementadas. Não trate
+locais, ciclos planejados/ativos/fechados, envelopes e despesas manuais com estorno.
+Autenticação entre serviços, contas bancárias e receitas realizadas não estão implementadas. Não trate
 propostas de documentação como funcionalidades entregues.
 
 ## Arquitetura e dependências
@@ -20,7 +20,7 @@ propostas de documentação como funcionalidades entregues.
 | Crate | Responsabilidade |
 | --- | --- |
 | `obz-domain` | Entidades, valores e invariantes financeiras; zero dependências externas |
-| `obz-cycle` | Casos de uso de ciclos, autorização e contrato `CycleRepository` |
+| `obz-cycle` | Casos de uso de ciclos, envelopes e despesas; autorização e contratos de persistência |
 | `obz-auth` | OIDC, autorização, contratos de identidade e sessões; adaptadores de sessão existentes |
 | `obz-infrastructure` | Conexão PostgreSQL, migrações e implementações dos repositórios |
 | `obz-api` | Transporte HTTP, configuração e composição das dependências |
@@ -47,6 +47,10 @@ propostas de documentação como funcionalidades entregues.
   A ativação exige saldo zero e congela o planejamento; somente ciclos ativos
   podem ser fechados, sem reabertura. As transições são idempotentes e usam o
   mesmo bloqueio por ciclo das mutações de envelopes.
+  Despesas exigem ciclo ativo, data dentro do período e saldo no envelope.
+  Lançamentos e estornos são imutáveis; estorno repetido não devolve saldo novamente.
+  Gastos não alteram a alocação. Use o mesmo lock por ciclo para gastos, estornos
+  e fechamento.
   O fim do período é exclusivo. Mudar esses contratos exige regra explícita e testes.
 
 ## Autenticação, autorização e isolamento
@@ -132,4 +136,5 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 Referências: [API](crates/api/README.md), [autenticação](crates/auth/README.md),
 [identidades e permissões](docs/identidades-e-permissoes.md) e
-[ciclos planejados](docs/ciclos-planejados.md) e [envelopes](docs/envelopes.md).
+[ciclos planejados](docs/ciclos-planejados.md), [envelopes](docs/envelopes.md) e
+[despesas e estornos](docs/despesas.md).

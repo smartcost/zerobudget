@@ -153,7 +153,7 @@ exemplo não é interpretado automaticamente por todos os aplicativos.
 
 ## Cobertura e contrato
 
-Os 22 cenários cobrem:
+Os 30 cenários cobrem:
 
 - login/callback/PKCE, cookies HttpOnly, sessão e logout;
 - ausência de sessão e bearer arbitrário recusado;
@@ -164,6 +164,9 @@ Os 22 cenários cobrem:
 - ativação com saldo zero, fechamento definitivo e transições idempotentes;
 - congelamento dos envelopes em ciclos ativos/fechados e leitura preservada;
 - autorização/CSRF das transições e disputa entre ativação e exclusão;
+- despesas, saldo restante, histórico preservado e estorno idempotente;
+- datas dentro do ciclo, valores positivos, isolamento e permissões dos gastos;
+- despesas concorrentes sem excesso, estornos simultâneos e fechamento concorrente;
 - criações e alterações concorrentes disputando o saldo.
 
 As respostas de sucesso verificadas pelo cliente usam os schemas do

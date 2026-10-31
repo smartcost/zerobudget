@@ -33,6 +33,17 @@ export type Envelope = {
   cycle_id: string;
   name: string;
   allocated_cents: number;
+  spent_cents: number;
+  remaining_cents: number;
+};
+export type Expense = {
+  id: string;
+  cycle_id: string;
+  envelope_id: string;
+  description: string;
+  occurred_on: string;
+  amount_cents: number;
+  status: "posted" | "reversed";
 };
 export class ApiClient {
   constructor(
