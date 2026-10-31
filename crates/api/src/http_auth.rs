@@ -16,6 +16,7 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub(crate) credit: Option<obz_banking::CreditService>,
     pub(crate) banking: Option<obz_banking::BankingService>,
     pub(crate) expenses: Option<obz_cycle::ExpenseService>,
     pub(crate) envelopes: Option<obz_cycle::EnvelopeService>,
@@ -39,12 +40,17 @@ impl AppState {
             envelopes: None,
             expenses: None,
             banking: None,
+            credit: None,
             auth: Arc::new(RwLock::new(Arc::new(auth))),
             store,
             users,
             origin: origin.into(),
             secure: secure_cookies,
         }
+    }
+    pub fn with_credit(mut self, credit: obz_banking::CreditService) -> Self {
+        self.credit = Some(credit);
+        self
     }
     pub fn with_banking(mut self, banking: obz_banking::BankingService) -> Self {
         self.banking = Some(banking);
@@ -108,6 +114,7 @@ pub fn router(state: AppState) -> Router {
         .merge(crate::http_envelopes::routes())
         .merge(crate::http_expenses::routes())
         .merge(crate::http_banking::routes())
+        .merge(crate::http_credit::routes())
         .with_state(state)
         .layer(middleware::from_fn(security_headers))
 }

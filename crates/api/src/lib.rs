@@ -9,3 +9,5 @@ mod http_envelopes;
 mod http_expenses;
 
 mod http_banking;
+
+mod http_credit;

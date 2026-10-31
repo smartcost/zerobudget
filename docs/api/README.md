@@ -14,7 +14,7 @@ Os testes e a captura de variáveis já estão incorporados à coleção version
 
 | Arquivo | Finalidade |
 | --- | --- |
-| [openapi.json](openapi.json) | Contrato OpenAPI 3.0.3 de saúde, autenticação, ciclos, envelopes, despesas e contas |
+| [openapi.json](openapi.json) | Contrato OpenAPI 3.0.3 de saúde, autenticação, ciclos, envelopes, despesas, contas e cartões |
 | [Coleção Postman](postman/zerobudget.postman_collection.json) | Operações manuais, validação de envelopes e logout separado |
 | [Ambiente local](postman/local.postman_environment.json) | Base URL e parâmetros de desenvolvimento, sem sessão ou credenciais exportadas |
 
@@ -112,7 +112,7 @@ O primeiro login não concede direitos financeiros. As operações exigem:
 
 | Tipo | Permissão |
 | --- | --- |
-| Listar/consultar ciclos, envelopes, despesas e contas | `budget:read` |
+| Listar/consultar ciclos, envelopes, despesas, contas e cartões | `budget:read` |
 | Criar/ativar/fechar ciclos, alterar envelopes, registrar/estornar despesas | `budget:write` |
 
 Use o UUID local retornado por **Consultar sessão**, não o subject do Dex. Se
@@ -282,7 +282,8 @@ transferir entre contas próprias e consultar extrato. Defina `account_name`,
 Criar uma conta captura `account_id`. Para transferir, selecione também
 `to_account_id`, `banking_date`, `banking_description` e `banking_amount_cents`.
 
-Novas despesas exigem `account_id`, com saldo suficiente. O estorno devolve saldo
+Novas despesas exigem `account_id`, com saldo suficiente, ou `invoice_id` de
+fatura aberta com limite disponível. O estorno devolve saldo
 bancário e orçamentário uma única vez. Contas são manuais: não há integração com
 bancos. Recebimentos não alteram automaticamente a renda planejada.
 
@@ -291,3 +292,21 @@ bancos. Recebimentos não alteram automaticamente a renda planejada.
 ```
 
 Contrato, migração e limites: [contas](../contas.md).
+
+## Cartões e faturas
+
+A pasta manual inclui criar/consultar cartões, abrir/listar/fechar faturas,
+registrar compras e pagar faturas. As datas de período e vencimento são explícitas.
+**Registrar compra no cartão** usa `invoice_id`, sem `account_id` no corpo.
+
+**Pagar fatura** exige conta própria, data a partir do fim do período e valor
+positivo até o restante da dívida. O script gera `card_payment_request_id` uma
+vez e o mantém para retry seguro. Para outro pagamento, limpe essa variável ou
+informe outro UUID. Repetir o pedido idêntico mantém o mesmo ID e débito único;
+reutilizar o UUID com valor/data/conta diferentes retorna 409.
+
+```sh
+./scripts/e2e test credit
+```
+
+Regras e limites: [cartões e faturas](../cartoes.md).

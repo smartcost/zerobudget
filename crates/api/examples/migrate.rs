@@ -20,6 +20,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         obz_infrastructure::PostgresBankingRepository::new(database.clone())
             .grant_runtime_role(&role)
             .await?;
+        obz_infrastructure::PostgresCreditRepository::new(database.clone())
+            .grant_runtime_role(&role)
+            .await?;
         obz_infrastructure::PostgresCycleRepository::new(database)
             .grant_runtime_role(&role)
             .await?;

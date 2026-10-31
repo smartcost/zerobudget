@@ -256,7 +256,7 @@ async fn expenses_raw_sql_and_closure_serialize_with_application_writes() {
                 cycle,
                 envelope,
                 obz_cycle::ExpenseInput {
-                    account_id,
+                    funding: obz_cycle::ExpenseFunding::Account(account_id),
                     description: "After reversal".into(),
                     date: chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
                     amount_cents: 100,

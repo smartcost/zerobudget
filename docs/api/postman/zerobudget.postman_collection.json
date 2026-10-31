@@ -738,6 +738,368 @@
               }
             }
           ]
+        },
+        {
+          "name": "Criar cartão",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cards",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"name\": {{credit_name_json}},\n \"opened_on\": \"{{card_opened_on}}\",\n \"credit_limit_cents\": {{credit_limit_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão para obter CSRF.');",
+                  "pm.variables.set('credit_name_json', JSON.stringify(pm.environment.get('credit_name') || 'Cartão'));",
+                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Compra'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Pagamento de fatura')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code === 201) pm.environment.set('card_id',pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar cartões",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cards?limit=20&offset=0",
+            "header": [],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar cartão e limite",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cards/{{card_id}}",
+            "header": [],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Abrir fatura",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cards/{{card_id}}/invoices",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"period_start\": \"{{invoice_period_start}}\",\n \"period_end\": \"{{invoice_period_end}}\",\n \"due_on\": \"{{invoice_due_on}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão para obter CSRF.');",
+                  "pm.variables.set('credit_name_json', JSON.stringify(pm.environment.get('credit_name') || 'Cartão'));",
+                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Compra'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Pagamento de fatura')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code === 201) pm.environment.set('invoice_id',pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar faturas",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cards/{{card_id}}/invoices?limit=20&offset=0",
+            "header": [],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar fatura",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cards/{{card_id}}/invoices/{{invoice_id}}",
+            "header": [],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar compra no cartão",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/envelopes/{{envelope_id}}/expenses",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"invoice_id\": \"{{invoice_id}}\",\n \"description\": {{expense_description_json}},\n \"occurred_on\": \"{{expense_date}}\",\n \"amount_cents\": {{expense_amount_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão para obter CSRF.');",
+                  "pm.variables.set('credit_name_json', JSON.stringify(pm.environment.get('credit_name') || 'Cartão'));",
+                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Compra'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Pagamento de fatura')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code === 201) pm.environment.set('expense_id',pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar compras da fatura",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cards/{{card_id}}/invoices/{{invoice_id}}/purchases?limit=20&offset=0",
+            "header": [],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fechar fatura",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cards/{{card_id}}/invoices/{{invoice_id}}/close",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão para obter CSRF.');",
+                  "pm.variables.set('credit_name_json', JSON.stringify(pm.environment.get('credit_name') || 'Cartão'));",
+                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Compra'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Pagamento de fatura')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Pagar fatura",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cards/{{card_id}}/invoices/{{invoice_id}}/payments",
+            "header": [
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md. O identificador gerado fica no ambiente para retry seguro. Para OUTRO pagamento, limpe card_payment_request_id ou forneça outro UUID. Repetir o mesmo pedido não duplica o débito.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n \"request_id\": \"{{card_payment_request_id}}\",\n \"account_id\": \"{{account_id}}\",\n \"description\": {{banking_description_json}},\n \"occurred_on\": \"{{card_payment_date}}\",\n \"amount_cents\": {{card_payment_amount_cents}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('csrf_token')) throw new Error('Consulte a sessão para obter CSRF.');",
+                  "pm.variables.set('credit_name_json', JSON.stringify(pm.environment.get('credit_name') || 'Cartão'));",
+                  "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Compra'));",
+                  "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Pagamento de fatura')); ",
+                  "if (!pm.environment.get('card_payment_request_id')) pm.environment.set('card_payment_request_id', pm.variables.replaceIn('{{$guid}}')); "
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
+                  "if (pm.response.code === 201) pm.environment.set('card_payment_id',pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar pagamentos da fatura",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cards/{{card_id}}/invoices/{{invoice_id}}/payments?limit=20&offset=0",
+            "header": [],
+            "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', function () { pm.expect(pm.response.code).to.eql(200); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },

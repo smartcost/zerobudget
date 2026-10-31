@@ -37,6 +37,7 @@ export type Envelope = {
   remaining_cents: number;
 };
 export type Expense = {
+  invoice_id: string | null;
   account_id: string | null;
   id: string;
   cycle_id: string;

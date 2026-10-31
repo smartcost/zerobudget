@@ -64,6 +64,7 @@ impl Setup {
             .unwrap();
         obz_infrastructure::PostgresExpenseRepository::new(owner.clone()).grant_runtime_role(&db.runtime_role).await.unwrap();
         obz_infrastructure::PostgresBankingRepository::new(owner.clone()).grant_runtime_role(&db.runtime_role).await.unwrap();
+        obz_infrastructure::PostgresCreditRepository::new(owner.clone()).grant_runtime_role(&db.runtime_role).await.unwrap();
         let runtime = Database::connect(DatabaseConfig::new(db.runtime_url.clone(), true))
             .await
             .unwrap();
@@ -75,6 +76,7 @@ impl Setup {
         fixture.state.envelopes = Some(EnvelopeService::new(Arc::new(
             PostgresEnvelopeRepository::new(runtime.clone()),
         )));
+        fixture.state.credit=Some(obz_banking::CreditService::new(Arc::new(obz_infrastructure::PostgresCreditRepository::new(runtime.clone()))));
         fixture.state.banking=Some(obz_banking::BankingService::new(Arc::new(obz_infrastructure::PostgresBankingRepository::new(runtime.clone()))));
         fixture.state.expenses = Some(obz_cycle::ExpenseService::new(Arc::new(obz_infrastructure::PostgresExpenseRepository::new(runtime.clone()))));
         let (cookie, csrf) = fixture.authenticate().await;
@@ -705,3 +707,6 @@ mod expense_tests;
 
 #[path = "banking_tests.rs"]
 mod banking_tests;
+
+#[path = "credit_tests.rs"]
+mod credit_tests;

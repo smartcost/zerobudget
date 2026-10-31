@@ -22,6 +22,14 @@ pub enum BankingError {
     InsufficientFunds,
     #[error("account balance exceeds integer limit")]
     Overflow,
+    #[error("credit resource conflict")]
+    CreditConflict,
+    #[error("operation not allowed in invoice state")]
+    InvalidState,
+    #[error("credit limit exceeded")]
+    CreditLimit,
+    #[error("payment exceeds invoice balance")]
+    Overpayment,
     #[error("banking storage unavailable")]
     Unavailable,
 }
@@ -38,6 +46,7 @@ pub struct BankMovement {
     pub from_account_id: Option<Uuid>,
     pub to_account_id: Option<Uuid>,
     pub expense_id: Option<Uuid>,
+    pub card_payment_id: Option<Uuid>,
     pub movement: CashMovement,
 }
 #[derive(Debug, Clone)]
@@ -244,6 +253,7 @@ mod tests {
                 from_account_id: from,
                 to_account_id: Some(to),
                 expense_id: None,
+                card_payment_id: None,
                 kind: if from.is_some() {
                     "transfer"
                 } else {
@@ -328,3 +338,9 @@ mod tests {
         assert_eq!(*repo.0.lock().unwrap(), vec![owner; 4]);
     }
 }
+
+mod credit;
+pub use credit::{
+    Card, CardInput, CardPayment, CreditRepository, CreditService, Invoice, InvoiceInput,
+    InvoicePurchase, PaymentInput,
+};

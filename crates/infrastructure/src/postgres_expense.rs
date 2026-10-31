@@ -12,7 +12,8 @@ use obz_domain::{
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
-const READ: &str = "SELECT x.id,x.cycle_id,x.envelope_id,x.description,x.amount_cents,x.account_id,
+const READ: &str =
+    "SELECT x.id,x.cycle_id,x.envelope_id,x.description,x.amount_cents,x.account_id,x.invoice_id,
     (x.occurred_on-DATE '0001-01-01'+1) AS day,
     EXISTS(SELECT 1 FROM budgeting.expense_reversals r WHERE r.expense_id=x.id) AS reversed
     FROM budgeting.expenses x WHERE x.owner_id=$1 AND x.cycle_id=$2 AND x.envelope_id=$3
@@ -28,6 +29,7 @@ fn decode(row: sqlx::postgres::PgRow) -> Result<BudgetExpense, StorageError> {
     Ok(BudgetExpense {
         id: row.try_get("id")?,
         account_id: row.try_get("account_id")?,
+        invoice_id: row.try_get("invoice_id")?,
         cycle_id: row.try_get("cycle_id")?,
         envelope_id: row.try_get("envelope_id")?,
         expense,
@@ -149,15 +151,23 @@ impl ExpenseRepository for PostgresExpenseRepository {
         self.bounded(async {
             let (mut tx,period,balance)=self.locked(owner,cycle,envelope).await?;
             let expense=funded.expense;
-            let account_id=funded.account_id;
-            let found:Option<Uuid>=sqlx::query_scalar("SELECT id FROM banking.accounts WHERE id=$1 AND owner_id=$2").bind(account_id).bind(owner).fetch_optional(&mut *tx).await?;
-            if found.is_none(){return Err(CycleError::NotFound.into());}
+            let (account_id,invoice_id)=funded.funding.ids();
+            if let Some(account_id)=account_id{
+                let found:Option<Uuid>=sqlx::query_scalar("SELECT id FROM banking.accounts WHERE id=$1 AND owner_id=$2").bind(account_id).bind(owner).fetch_optional(&mut *tx).await?;
+                if found.is_none(){return Err(CycleError::NotFound.into());}
+            }
+            if let Some(invoice_id)=invoice_id{
+                let (card,invoice)=crate::PostgresCreditRepository::funding(&mut tx,owner,invoice_id).await.map_err(credit_error)?;
+                if invoice.closed{return Err(CycleError::InvoiceClosed.into());}
+                if !invoice.period.contains(expense.day())||expense.day()<card.card.opened_day(){return Err(CycleError::Invalid.into());}
+                card.card.charge(card.outstanding,expense.amount()).map_err(|_|CycleError::CreditLimit)?;
+            }
             expense.validate_period(period).map_err(domain)?;
             balance.record(CycleStatus::Active,expense.amount()).map_err(domain)?;
             let date=sqlx::types::chrono::NaiveDate::from_num_days_from_ce_opt(expense.day()).ok_or(CycleError::Invalid)?;
-            sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents,account_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8)")
-                .bind(id).bind(cycle).bind(envelope).bind(owner).bind(expense.description()).bind(date).bind(expense.amount().to_cents()).bind(account_id).execute(&mut *tx).await?;
-            tx.commit().await?; Ok(BudgetExpense { id,cycle_id:cycle,envelope_id:envelope,expense,reversed:false,account_id:Some(account_id) })
+            sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents,account_id,invoice_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)")
+                .bind(id).bind(cycle).bind(envelope).bind(owner).bind(expense.description()).bind(date).bind(expense.amount().to_cents()).bind(account_id).bind(invoice_id).execute(&mut *tx).await?;
+            tx.commit().await?; Ok(BudgetExpense { id,cycle_id:cycle,envelope_id:envelope,expense,reversed:false,account_id,invoice_id })
         }).await
     }
     async fn list(
@@ -201,6 +211,7 @@ impl ExpenseRepository for PostgresExpenseRepository {
             let row=sqlx::query(READ).bind(owner).bind(cycle).bind(envelope).bind(Some(id)).bind(1_i64).bind(0_i64).fetch_optional(&mut *tx).await?.ok_or(CycleError::NotFound)?;
             let mut record=decode(row)?;
             if !record.reversed {
+                if let Some(invoice_id)=record.invoice_id{let (_,invoice)=crate::PostgresCreditRepository::funding(&mut tx,owner,invoice_id).await.map_err(credit_error)?;if invoice.closed{return Err(CycleError::InvoiceClosed.into());}}
                 balance.reverse(CycleStatus::Active,record.expense.amount()).map_err(domain)?;
                 sqlx::query("INSERT INTO budgeting.expense_reversals(expense_id,cycle_id,envelope_id,owner_id) VALUES($1,$2,$3,$4)")
                     .bind(id).bind(cycle).bind(envelope).bind(owner).execute(&mut *tx).await?;
@@ -208,5 +219,15 @@ impl ExpenseRepository for PostgresExpenseRepository {
             }
             tx.commit().await?; Ok(record)
         }).await
+    }
+}
+
+fn credit_error(e: crate::postgres_banking::Error) -> StorageError {
+    match e {
+        crate::postgres_banking::Error::Sql(e) => StorageError::Sql(e),
+        crate::postgres_banking::Error::Application(obz_banking::BankingError::NotFound) => {
+            CycleError::NotFound.into()
+        }
+        crate::postgres_banking::Error::Application(_) => CycleError::Unavailable.into(),
     }
 }

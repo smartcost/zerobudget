@@ -1,8 +1,10 @@
 # Despesas manuais e estornos
 
 Uma despesa registra o uso do dinheiro de um envelope em um ciclo **ativo**.
-Novas despesas exigem `account_id` próprio: o débito é registrado na mesma
-transação do consumo do envelope. Não representa uma transferência entre contas. A alocação permanece fixa; o saldo
+Despesas com débito imediato usam `account_id` próprio: o débito é registrado na
+mesma transação do consumo do envelope. Compras no crédito usam `invoice_id`
+próprio, dentro de uma fatura aberta e do limite do cartão. Informe exatamente
+uma das origens; omissão, duplicidade e `null` explícito são rejeitados. Não representa uma transferência entre contas. A alocação permanece fixa; o saldo
 para gastar é `allocated_cents - spent_cents`. O gasto inclui somente despesas
 que não foram estornadas.
 
@@ -48,7 +50,7 @@ Corpo de criação (substitua a data por uma dentro do ciclo selecionado):
 ```
 
 A resposta contém `id`, `cycle_id`, `envelope_id`, `description`, `occurred_on`,
-`amount_cents`, `account_id` e `status` (`posted` ou `reversed`). A listagem ordena por data
+`amount_cents`, `account_id`, `invoice_id` e `status` (`posted` ou `reversed`). A listagem ordena por data
 decrescente e UUID decrescente; `limit` vai de 1 a 100 e `offset` de 0 a 100000.
 Paginação por offset pode mudar sob escritas concorrentes.
 
@@ -108,8 +110,14 @@ cobrem RLS, imutabilidade, aritmética de 64 bits e ordens controladas do lock.
 
 O [contrato OpenAPI e a coleção Postman](api/README.md) incluem as três operações.
 Contas manuais, recebimentos e transferências estão em [contas](contas.md). Não
-há importação, integração bancária ou cartão de crédito.
+há importação ou integração bancária. [Cartões](cartoes.md) usam o mesmo registro
+de despesa, preservando a regra de não contabilizar o pagamento novamente.
 
 A migração 0006 preserva despesas antigas com `account_id=null`. Elas não debitam
 contas e seus estornos não geram créditos bancários. Não se inventa vínculo com
-uma conta para o histórico; novas despesas sem conta são rejeitadas.
+uma conta para o histórico; novas despesas sem conta ou fatura são rejeitadas.
+
+Para compra no cartão, `account_id=null` e `invoice_id` identifica a fatura na
+resposta. O estorno recupera limite e saldo do envelope, sem creditar conta. Novo
+estorno exige fatura aberta e ciclo ativo; repetição de um estorno já confirmado
+continua idempotente enquanto o ciclo estiver ativo.

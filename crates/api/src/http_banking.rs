@@ -35,6 +35,15 @@ impl From<BankingError> for ApiError {
                 StatusCode::CONFLICT,
                 "account balance exceeds integer limit",
             ),
+            BankingError::CreditConflict => Self(StatusCode::CONFLICT, "credit resource conflict"),
+            BankingError::InvalidState => Self(
+                StatusCode::CONFLICT,
+                "operation not allowed in invoice state",
+            ),
+            BankingError::CreditLimit => Self(StatusCode::CONFLICT, "credit limit exceeded"),
+            BankingError::Overpayment => {
+                Self(StatusCode::CONFLICT, "payment exceeds invoice balance")
+            }
             BankingError::Unavailable => Self(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "banking storage unavailable",
@@ -118,6 +127,7 @@ struct MovementResponse {
     from_account_id: Option<Uuid>,
     to_account_id: Option<Uuid>,
     expense_id: Option<Uuid>,
+    card_payment_id: Option<Uuid>,
     description: String,
     occurred_on: chrono::NaiveDate,
     amount_cents: i64,
@@ -130,6 +140,7 @@ impl From<BankMovement> for MovementResponse {
             from_account_id: m.from_account_id,
             to_account_id: m.to_account_id,
             expense_id: m.expense_id,
+            card_payment_id: m.card_payment_id,
             description: m.movement.description().into(),
             occurred_on: chrono::NaiveDate::from_num_days_from_ce_opt(m.movement.day())
                 .expect("validated movement date"),

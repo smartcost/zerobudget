@@ -181,7 +181,7 @@ async fn banking_transfer_and_expense_share_funds_and_refund_failure_is_atomic()
                 cycle,
                 envelope,
                 obz_cycle::ExpenseInput {
-                    account_id: account,
+                    funding: obz_cycle::ExpenseFunding::Account(account),
                     description: "Concurrent".into(),
                     date: chrono::NaiveDate::from_ymd_opt(2026, 10, 1).unwrap(),
                     amount_cents: 100,
@@ -283,6 +283,16 @@ async fn banking_migration_preserves_unlinked_expenses_and_does_not_invent_balan
         .unwrap();
     sqlx::raw_sql(&migration.sql)
         .execute(owner.pool())
+        .await
+        .unwrap();
+    for m in obz_infrastructure::MIGRATOR
+        .iter()
+        .filter(|m| m.version > 6)
+    {
+        sqlx::raw_sql(&m.sql).execute(owner.pool()).await.unwrap();
+    }
+    obz_infrastructure::PostgresCreditRepository::new(owner.clone())
+        .grant_runtime_role(&db.runtime_role)
         .await
         .unwrap();
     PostgresIdentityRepository::from_database(&owner)

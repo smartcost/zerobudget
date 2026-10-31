@@ -14,17 +14,31 @@ pub struct BudgetExpense {
     pub expense: Expense,
     pub reversed: bool,
     pub account_id: Option<Uuid>,
+    pub invoice_id: Option<Uuid>,
+}
+#[derive(Debug, Clone, Copy)]
+pub enum ExpenseFunding {
+    Account(Uuid),
+    Invoice(Uuid),
+}
+impl ExpenseFunding {
+    pub fn ids(self) -> (Option<Uuid>, Option<Uuid>) {
+        match self {
+            Self::Account(id) => (Some(id), None),
+            Self::Invoice(id) => (None, Some(id)),
+        }
+    }
 }
 #[derive(Debug, Clone)]
 pub struct ExpenseInput {
-    pub account_id: Uuid,
+    pub funding: ExpenseFunding,
     pub description: String,
     pub date: NaiveDate,
     pub amount_cents: i64,
 }
 #[derive(Debug, Clone)]
 pub struct FundedExpense {
-    pub account_id: Uuid,
+    pub funding: ExpenseFunding,
     pub expense: Expense,
 }
 /// Mutations must acquire the cycle allocation/lifecycle lock before loading the
@@ -86,7 +100,7 @@ impl ExpenseService {
                 envelope,
                 Uuid::new_v4(),
                 FundedExpense {
-                    account_id: input.account_id,
+                    funding: input.funding,
                     expense,
                 },
             )
@@ -145,7 +159,8 @@ mod tests {
                 cycle_id: cycle,
                 envelope_id: envelope,
                 expense: funded.expense,
-                account_id: Some(funded.account_id),
+                account_id: funded.funding.ids().0,
+                invoice_id: funded.funding.ids().1,
                 reversed: false,
             })
         }
@@ -188,7 +203,7 @@ mod tests {
                     cycle,
                     envelope,
                     ExpenseInput {
-                        account_id: Uuid::new_v4(),
+                        funding: ExpenseFunding::Account(Uuid::new_v4()),
                         description: "A".into(),
                         date,
                         amount_cents: 1
@@ -215,7 +230,7 @@ mod tests {
                         cycle,
                         envelope,
                         ExpenseInput {
-                            account_id: Uuid::new_v4(),
+                            funding: ExpenseFunding::Account(Uuid::new_v4()),
                             description: description.into(),
                             date,
                             amount_cents: amount
@@ -242,7 +257,7 @@ mod tests {
                     cycle,
                     envelope,
                     ExpenseInput {
-                        account_id: Uuid::new_v4(),
+                        funding: ExpenseFunding::Account(Uuid::new_v4()),
                         description: "A".into(),
                         date,
                         amount_cents: 1
@@ -262,7 +277,7 @@ mod tests {
                 cycle,
                 envelope,
                 ExpenseInput {
-                    account_id: Uuid::new_v4(),
+                    funding: ExpenseFunding::Account(Uuid::new_v4()),
                     description: "A".into(),
                     date,
                     amount_cents: 1,

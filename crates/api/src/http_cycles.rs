@@ -83,6 +83,8 @@ impl From<CycleError> for ApiError {
                 StatusCode::CONFLICT,
                 "account balance exceeds integer limit",
             ),
+            CycleError::InvoiceClosed => Self(StatusCode::CONFLICT, "invoice is closed"),
+            CycleError::CreditLimit => Self(StatusCode::CONFLICT, "credit limit exceeded"),
             CycleError::Unavailable => Self(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "budget storage unavailable",

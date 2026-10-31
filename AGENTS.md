@@ -12,8 +12,8 @@ Não amplie a etapa em andamento para funcionalidades futuras sem necessidade.
 
 Atualmente há autenticação de usuários pelo Dex, sessões no servidor, permissões
 locais, ciclos planejados/ativos/fechados, envelopes, despesas com estorno, contas
-manuais, recebimentos e transferências próprias. Autenticação entre serviços,
-integração bancária, cartões e faturas não estão implementados. Não trate
+manuais, recebimentos, transferências próprias, cartões e faturas manuais.
+Autenticação entre serviços, integração bancária, parcelamento e juros não estão implementados. Não trate
 propostas de documentação como funcionalidades entregues.
 
 ## Arquitetura e dependências
@@ -22,7 +22,7 @@ propostas de documentação como funcionalidades entregues.
 | --- | --- |
 | `obz-domain` | Entidades, valores e invariantes financeiras; zero dependências externas |
 | `obz-cycle` | Casos de uso de ciclos, envelopes e despesas; autorização e contratos de persistência |
-| `obz-banking` | Casos de uso e contratos de contas e movimentações; independente de ciclos |
+| `obz-banking` | Casos de uso e contratos de contas, cartões e faturas; independente de ciclos |
 | `obz-auth` | OIDC, autorização, contratos de identidade e sessões; adaptadores de sessão existentes |
 | `obz-infrastructure` | Conexão PostgreSQL, migrações e implementações dos repositórios |
 | `obz-api` | Transporte HTTP, configuração e composição das dependências |
@@ -53,11 +53,16 @@ propostas de documentação como funcionalidades entregues.
   Lançamentos e estornos são imutáveis; estorno repetido não devolve saldo novamente.
   Gastos não alteram a alocação. Use o mesmo lock por ciclo para gastos, estornos
   e fechamento.
-  Novas despesas exigem conta própria e débito atômico com o consumo do envelope.
+  Novas despesas exigem exatamente uma origem: conta própria para débito imediato
+  ou fatura própria aberta para compra no crédito. Ambas consomem o envelope.
   Contas não podem ficar negativas nem exceder i64::MAX. Transferências são uma
   única operação entre contas próprias; não geram receita/despesa no orçamento.
   Recebimentos não alteram a renda planejada automaticamente. O histórico anterior
   à migração bancária pode ter account_id nulo e não produz lançamentos fictícios.
+  Limite de crédito é compartilhado entre todas as faturas do cartão. Pagamentos
+  de fatura fechada debitam conta e reduzem dívida sem consumir envelope novamente;
+  request_id torna o pagamento idempotente, com conflito para dados diferentes.
+  Estornos de compra só alteram faturas abertas; fechamento da fatura é definitivo.
   Preserve a ordem dos locks: ciclo primeiro, proprietário bancário depois.
   O fim do período é exclusivo. Mudar esses contratos exige regra explícita e testes.
 
@@ -116,7 +121,9 @@ cargo clippy --workspace --all-targets -- -D warnings
 - Testes ignorados de integração exigem Redis/PostgreSQL locais e as variáveis
   `AUTH_TEST_DATABASE_URL`, `AUTH_TEST_RUNTIME_DATABASE_URL` e
   `AUTH_TEST_REDIS_URL`. Execute-os com
-  `cargo test --workspace -- --include-ignored` após configurar o ambiente.
+  `cargo test --workspace -- --include-ignored --test-threads=2` após configurar o ambiente.
+- Limite a concorrência das integrações a dois testes para evitar checkpoints
+  simultâneos de criação/remoção de bancos. Os cenários mantêm concorrência interna.
 - Use bancos descartáveis e namespaces Redis exclusivos. Nunca faça `FLUSHDB`,
   migre o banco de desenvolvimento ou conceda direitos a usuários reais em testes.
 - Cubra invariantes e falhas relevantes: valores inválidos, negação por padrão,
@@ -145,4 +152,4 @@ cargo clippy --workspace --all-targets -- -D warnings
 Referências: [API](crates/api/README.md), [autenticação](crates/auth/README.md),
 [identidades e permissões](docs/identidades-e-permissoes.md) e
 [ciclos planejados](docs/ciclos-planejados.md), [envelopes](docs/envelopes.md) e
-[despesas e estornos](docs/despesas.md) e [contas](docs/contas.md).
+[despesas e estornos](docs/despesas.md) e [contas](docs/contas.md) e [cartões](docs/cartoes.md).

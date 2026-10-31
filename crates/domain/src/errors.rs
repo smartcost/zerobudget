@@ -1,6 +1,10 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DomainError {
     InvalidAmount,
+    InvalidCredit,
+    InvalidInvoiceStatus,
+    CreditLimit,
+    CreditOverpayment,
     InvalidAccount,
     InvalidExpense,
     InsufficientFunds,
@@ -17,6 +21,12 @@ pub enum DomainError {
 impl std::fmt::Display for DomainError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            DomainError::InvalidInvoiceStatus => write!(f, "Invalid invoice status"),
+            DomainError::InvalidCredit => write!(f, "Invalid credit card or invoice"),
+            DomainError::CreditLimit => write!(f, "Credit limit exceeded"),
+            DomainError::CreditOverpayment => {
+                write!(f, "Payment exceeds invoice outstanding balance")
+            }
             DomainError::InvalidAccount => write!(f, "Invalid account or cash movement"),
             DomainError::InvalidExpense => write!(f, "Invalid expense description or date"),
             DomainError::InsufficientFunds => write!(f, "Insufficient balance"),

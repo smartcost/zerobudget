@@ -153,7 +153,7 @@ exemplo não é interpretado automaticamente por todos os aplicativos.
 
 ## Cobertura e contrato
 
-Os 36 cenários cobrem:
+Os 44 cenários cobrem:
 
 - login/callback/PKCE, cookies HttpOnly, sessão e logout;
 - ausência de sessão e bearer arbitrário recusado;
@@ -170,6 +170,9 @@ Os 36 cenários cobrem:
 - contas, recebimentos, transferências e extratos;
 - débito/estorno conjunto de conta e envelope, sem duplicar movimentações;
 - transferências concorrentes e despesas de ciclos diferentes na mesma conta;
+- compras no crédito, limite compartilhado e fechamento concorrente de faturas;
+- pagamentos parciais/integral e replay idempotente, sem nova despesa no envelope;
+- pagamento sem saldo, sobrepagamento e colisão do identificador de operação;
 - criações e alterações concorrentes disputando o saldo.
 
 As respostas de sucesso verificadas pelo cliente usam os schemas do

@@ -31,6 +31,10 @@ pub enum CycleError {
     AccountInsufficientFunds,
     #[error("account balance exceeds integer limit")]
     BalanceOverflow,
+    #[error("invoice is closed")]
+    InvoiceClosed,
+    #[error("credit limit exceeded")]
+    CreditLimit,
     #[error("budget storage unavailable")]
     Unavailable,
 }
@@ -250,4 +254,6 @@ mod lifecycle_tests {
 }
 
 mod expense;
-pub use expense::{BudgetExpense, ExpenseInput, ExpenseRepository, ExpenseService, FundedExpense};
+pub use expense::{
+    BudgetExpense, ExpenseFunding, ExpenseInput, ExpenseRepository, ExpenseService, FundedExpense,
+};

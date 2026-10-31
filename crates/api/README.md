@@ -175,7 +175,7 @@ docker compose up -d redis
 AUTH_TEST_DATABASE_URL=postgres://zerobudget_admin:app-admin-dev-password@127.0.0.1:5440/zerobudget \
 AUTH_TEST_RUNTIME_DATABASE_URL=postgres://zerobudget_runtime:runtime-dev-password@127.0.0.1:5440/zerobudget \
 AUTH_TEST_REDIS_URL=redis://127.0.0.1:6380/0 \
-cargo test -p obz-api -p obz-auth -- --include-ignored
+cargo test -p obz-api -p obz-auth -- --include-ignored --test-threads=2
 ```
 
 Os testes HTTP iniciam um provedor OIDC temporário em loopback, com descoberta,
@@ -237,4 +237,12 @@ usa `./scripts/e2e test expenses`. Gastos não alteram a distribuição da renda
 Consulte [contas e movimentações](../../docs/contas.md). A migração 0006 exige
 `account_id` nas novas despesas; débito e estorno bancário são atômicos com o
 orçamento. Recebimentos e transferências não alteram a renda planejada.
-A regressão isolada usa `./scripts/e2e test banking`. Cartões ainda não existem.
+A regressão isolada usa `./scripts/e2e test banking`. Cartões e faturas manuais estão descritos no guia abaixo.
+
+## Cartões e faturas
+
+Consulte [cartões e pagamentos](../../docs/cartoes.md). Compras usam `invoice_id`
+em vez de `account_id`; pagamentos de fatura fechada não criam nova despesa no
+envelope. A migração 0007 mantém os históricos anteriores intactos. Pagamentos
+exigem `request_id` para repetição idempotente. A regressão é
+`./scripts/e2e test credit`.

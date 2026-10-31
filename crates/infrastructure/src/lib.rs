@@ -16,3 +16,6 @@ pub use postgres_expense::PostgresExpenseRepository;
 
 mod postgres_banking;
 pub use postgres_banking::PostgresBankingRepository;
+
+mod postgres_credit;
+pub use postgres_credit::PostgresCreditRepository;

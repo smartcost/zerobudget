@@ -2,7 +2,8 @@
 
 A conta descreve **onde** o dinheiro está. O envelope descreve **para quê** ele foi
 reservado. Esta etapa registra contas bancárias manuais (`bank`) e carteira
-(`cash`), sempre em BRL, sem integração bancária, cheque especial ou cartão.
+(`cash`), sempre em BRL, sem integração bancária ou cheque especial.
+[Cartões e faturas](cartoes.md) são passivos separados das contas com dinheiro.
 
 O saldo inicial é informado pelo usuário para a data `opened_on`. O saldo atual
 registrado é saldo inicial + entradas − saídas, em centavos inteiros de zero até
@@ -17,12 +18,14 @@ saldo é verificado no registro da operação; não há reconstrução de solvê
 | Recebimento | Credita uma conta | Não altera automaticamente |
 | Transferência própria | Debita origem e credita destino | Não altera |
 | Despesa | Debita conta de pagamento | Consome envelope uma vez |
-| Estorno da despesa | Credita a conta original uma vez | Devolve saldo uma vez |
+| Estorno da despesa paga pela conta | Credita a conta original uma vez | Devolve saldo uma vez |
+| Pagamento de fatura | Debita a conta e reduz a dívida do cartão | Não consome novamente |
 
 É possível planejar um ciclo com renda esperada ainda não recebida. A despesa
 só será aceita se houver saldo tanto no envelope quanto na conta.
 
-Novas despesas **exigem `account_id`**. O débito e o consumo do envelope acontecem
+Despesas com débito imediato **exigem `account_id`**. Alternativamente, uma compra
+no crédito informa `invoice_id`, consumindo o envelope sem débito bancário imediato. O débito e o consumo do envelope acontecem
 na mesma transação: qualquer falha reverte ambos. O mesmo vale para estornos,
 inclusive se o crédito exceder `i64::MAX`. O estorno ainda exige ciclo ativo.
 

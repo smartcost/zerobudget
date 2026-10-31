@@ -23,10 +23,16 @@ pub(crate) fn routes() -> Router<AppState> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Create {
-    account_id: Uuid,
+    #[serde(default, deserialize_with = "optional_uuid")]
+    account_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "optional_uuid")]
+    invoice_id: Option<Uuid>,
     description: String,
     occurred_on: String,
     amount_cents: i64,
+}
+fn optional_uuid<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Uuid>, D::Error> {
+    Uuid::deserialize(d).map(Some)
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,12 +50,14 @@ struct ExpenseResponse {
     amount_cents: i64,
     status: &'static str,
     account_id: Option<Uuid>,
+    invoice_id: Option<Uuid>,
 }
 impl From<BudgetExpense> for ExpenseResponse {
     fn from(r: BudgetExpense) -> Self {
         Self {
             id: r.id,
             account_id: r.account_id,
+            invoice_id: r.invoice_id,
             cycle_id: r.cycle_id,
             envelope_id: r.envelope_id,
             description: r.expense.description().into(),
@@ -79,7 +87,11 @@ async fn create(
             cycle,
             envelope,
             obz_cycle::ExpenseInput {
-                account_id: body.account_id,
+                funding: match (body.account_id, body.invoice_id) {
+                    (Some(id), None) => obz_cycle::ExpenseFunding::Account(id),
+                    (None, Some(id)) => obz_cycle::ExpenseFunding::Invoice(id),
+                    _ => return Err(CycleError::Invalid.into()),
+                },
                 description: body.description,
                 date: crate::http_cycles::date(&body.occurred_on)?,
                 amount_cents: body.amount_cents,

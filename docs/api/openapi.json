@@ -29,6 +29,9 @@
     },
     {
       "name": "Contas"
+    },
+    {
+      "name": "Cartões"
     }
   ],
   "paths": {
@@ -1004,7 +1007,7 @@
             "$ref": "#/components/responses/422"
           }
         },
-        "description": "Exige budget:write e CSRF. Ciclo ativo, data dentro do período e saldo suficiente no envelope. Proprietário derivado da sessão. Despesa original imutável; não há edição nem exclusão. Requisições não são deduplicadas: após falha de transporte, consulte a lista antes de repetir. Exige account_id próprio: débito bancário e consumo do envelope são atômicos. Saldo bancário insuficiente ou estorno acima de i64::MAX retorna 409.",
+        "description": "Exige budget:write e CSRF, ciclo ativo e saldo no envelope. Informe exatamente um entre account_id (débito imediato) e invoice_id (compra em fatura aberta, dentro do período e limite do cartão). Histórico imutável. Sem repetição automática após falha de transporte.",
         "parameters": [
           {
             "$ref": "#/components/parameters/Csrf"
@@ -1547,6 +1550,738 @@
           }
         }
       }
+    },
+    "/api/cards": {
+      "post": {
+        "operationId": "createCreditCard",
+        "summary": "Criar cartão",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "201": {
+            "description": "Criar cartão",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCreditCard"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listCreditCards",
+        "summary": "Listar cartões e limites",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "200": {
+            "description": "Listar cartões e limites",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CreditCard"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/api/cards/{card_id}": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getCreditCard",
+        "summary": "Consultar limite e dívida",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "200": {
+            "description": "Consultar limite e dívida",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditCard"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/cards/{card_id}/invoices": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "openCardInvoice",
+        "summary": "Abrir fatura manual",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "201": {
+            "description": "Abrir fatura manual",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardInvoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCardInvoice"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listCardInvoices",
+        "summary": "Listar faturas",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "200": {
+            "description": "Listar faturas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CardInvoice"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/api/cards/{card_id}/invoices/{invoice_id}": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "invoice_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getCardInvoice",
+        "summary": "Consultar fatura e totais",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "200": {
+            "description": "Consultar fatura e totais",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardInvoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": []
+      }
+    },
+    "/api/cards/{card_id}/invoices/{invoice_id}/close": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "invoice_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "closeCardInvoice",
+        "summary": "Fechar fatura de forma idempotente",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "200": {
+            "description": "Fechar fatura de forma idempotente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardInvoice"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ]
+      }
+    },
+    "/api/cards/{card_id}/invoices/{invoice_id}/payments": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "invoice_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "payCardInvoice",
+        "summary": "Pagar parte ou total da fatura",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope. request_id é obrigatório e torna a operação idempotente; o ID retornado é o próprio request_id.",
+        "responses": {
+          "201": {
+            "description": "Pagar parte ou total da fatura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CardPayment"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          },
+          "413": {
+            "$ref": "#/components/responses/413"
+          },
+          "415": {
+            "$ref": "#/components/responses/415"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Csrf"
+          },
+          {
+            "$ref": "#/components/parameters/Origin"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCardPayment"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listCardPayments",
+        "summary": "Consultar pagamentos",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "200": {
+            "description": "Consultar pagamentos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CardPayment"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
+    },
+    "/api/cards/{card_id}/invoices/{invoice_id}/purchases": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        {
+          "name": "invoice_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "listInvoicePurchases",
+        "summary": "Consultar compras e estornos da fatura",
+        "tags": [
+          "Cartões"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Proprietário da sessão. GET exige budget:read; POST exige budget:write e CSRF. Cartões manuais e faturas com período explícito; sem juros/parcelamento. Pagamento reduz dívida e conta, sem nova despesa no envelope.",
+        "responses": {
+          "200": {
+            "description": "Consultar compras e estornos da fatura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InvoicePurchase"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1812,15 +2547,30 @@
           "account_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
           "description",
           "occurred_on",
-          "amount_cents",
-          "account_id"
+          "amount_cents"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "account_id"
+            ]
+          },
+          {
+            "required": [
+              "invoice_id"
+            ]
+          }
+        ]
       },
       "Expense": {
         "type": "object",
@@ -1867,6 +2617,12 @@
             "format": "uuid",
             "nullable": true,
             "description": "Conta de pagamento; null somente no histórico anterior à migração 0006."
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Fatura de pagamento da compra; null para conta e histórico sem vínculo."
           }
         },
         "required": [
@@ -1877,7 +2633,8 @@
           "occurred_on",
           "amount_cents",
           "status",
-          "account_id"
+          "account_id",
+          "invoice_id"
         ],
         "additionalProperties": false
       },
@@ -2050,7 +2807,8 @@
               "receipt",
               "transfer",
               "expense",
-              "expense_reversal"
+              "expense_reversal",
+              "card_payment"
             ]
           },
           "from_account_id": {
@@ -2084,6 +2842,11 @@
             "minimum": 1,
             "maximum": 9223372036854775807,
             "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "card_payment_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
           }
         },
         "required": [
@@ -2094,7 +2857,8 @@
           "expense_id",
           "description",
           "occurred_on",
-          "amount_cents"
+          "amount_cents",
+          "card_payment_id"
         ],
         "additionalProperties": false
       },
@@ -2111,7 +2875,8 @@
               "receipt",
               "transfer",
               "expense",
-              "expense_reversal"
+              "expense_reversal",
+              "card_payment"
             ]
           },
           "from_account_id": {
@@ -2149,6 +2914,11 @@
           "delta_cents": {
             "type": "integer",
             "format": "int64"
+          },
+          "card_payment_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
           }
         },
         "required": [
@@ -2160,7 +2930,313 @@
           "description",
           "occurred_on",
           "amount_cents",
-          "delta_cents"
+          "delta_cents",
+          "card_payment_id"
+        ],
+        "additionalProperties": false
+      },
+      "CreditCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "opened_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "credit_limit_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "outstanding_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "available_credit_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "opened_on",
+          "credit_limit_cents",
+          "outstanding_cents",
+          "available_credit_cents",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "CreateCreditCard": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "opened_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "credit_limit_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "name",
+          "opened_on",
+          "credit_limit_cents"
+        ],
+        "additionalProperties": false
+      },
+      "CardInvoice": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "card_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "purchases_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "paid_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "outstanding_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "paid"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "card_id",
+          "period_start",
+          "period_end",
+          "due_on",
+          "purchases_cents",
+          "paid_cents",
+          "outstanding_cents",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "CreateCardInvoice": {
+        "type": "object",
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "due_on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end",
+          "due_on"
+        ],
+        "additionalProperties": false
+      },
+      "CreateCardPayment": {
+        "type": "object",
+        "properties": {
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Aparada, sem caracteres de controle."
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo e único por pagamento. Repetição idêntica retorna a resposta original sem novo débito; dados diferentes com o mesmo ID retornam 409."
+          }
+        },
+        "required": [
+          "account_id",
+          "description",
+          "occurred_on",
+          "amount_cents",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "CardPayment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "account_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Aparada, sem caracteres de controle."
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "id",
+          "invoice_id",
+          "account_id",
+          "description",
+          "occurred_on",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "InvoicePurchase": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cycle_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "envelope_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Aparada, sem caracteres de controle."
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date",
+            "description": "Data civil YYYY-MM-DD dentro do ciclo; fim exclusivo. Datas futuras dentro do período são permitidas."
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "posted",
+              "reversed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "cycle_id",
+          "envelope_id",
+          "description",
+          "occurred_on",
+          "amount_cents",
+          "status"
         ],
         "additionalProperties": false
       }
@@ -2267,7 +3343,7 @@
         }
       },
       "409": {
-        "description": "Conflito: período ou nome duplicado, excesso de alocação, renda ainda não distribuída ou operação incompatível com o estado do ciclo. Inclui saldo insuficiente para despesa e escrita/estorno em ciclo não ativo.",
+        "description": "Conflito: período ou nome duplicado, excesso de alocação, renda ainda não distribuída ou operação incompatível com o estado do ciclo. Inclui saldo insuficiente para despesa e escrita/estorno em ciclo não ativo. Inclui limite de crédito, fatura fechada, períodos de fatura sobrepostos e pagamento acima da dívida.",
         "content": {
           "application/json": {
             "schema": {

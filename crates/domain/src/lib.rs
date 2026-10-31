@@ -11,3 +11,5 @@ pub mod envelope;
 pub mod expense;
 
 pub mod banking;
+
+pub mod credit;
