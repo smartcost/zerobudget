@@ -70,7 +70,7 @@ impl EnvelopeService {
             Money::from_cents(allocated).map_err(|_| CycleError::Invalid)?,
         );
         self.repository
-            .create(user.id(), cycle, Uuid::new_v4(), envelope)
+            .create(user.id(), cycle, Uuid::now_v7(), envelope)
             .await
     }
     pub async fn list(
@@ -172,9 +172,9 @@ mod envelope_service_tests {
     async fn permission_and_input_validation_precede_persistence() {
         let fake = Arc::new(FakeRepository::default());
         let service = EnvelopeService::new(fake.clone());
-        let cycle = Uuid::new_v4();
-        let envelope = Uuid::new_v4();
-        let id = Uuid::new_v4();
+        let cycle = Uuid::now_v7();
+        let envelope = Uuid::now_v7();
+        let id = Uuid::now_v7();
         let denied = LocalUser::from_persisted(id, Default::default());
         assert!(matches!(
             service.create(&denied, cycle, "A", 1).await,
@@ -234,8 +234,8 @@ mod envelope_service_tests {
     async fn valid_operations_pass_only_the_authenticated_owner_and_target_cycle() {
         let fake = Arc::new(FakeRepository::default());
         let service = EnvelopeService::new(fake.clone());
-        let cycle = Uuid::new_v4();
-        let id = Uuid::new_v4();
+        let cycle = Uuid::now_v7();
+        let id = Uuid::now_v7();
         let user = LocalUser::from_persisted(
             id,
             [Permission::ReadBudget, Permission::WriteBudget]

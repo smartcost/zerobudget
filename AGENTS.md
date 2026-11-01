@@ -100,6 +100,11 @@ propostas de documentação como funcionalidades entregues.
 
 ## Persistência e desenvolvimento local
 
+- Novos IDs locais usam UUIDv7 (`Uuid::now_v7()` / `pg_catalog.uuidv7()`).
+  `request_id` exige versão 7 e variante RFC; preserve a chave em retries.
+  Não converta IDs históricos, subjects externos ou segredos OIDC/sessão em UUIDv7.
+  Veja `docs/postgresql-18.md` para compatibilidade e decisões de performance.
+
 - Migrações SQLx ficam em `migrations/`, com um único histórico. Nunca edite uma
   migração já aplicada; crie uma nova para evoluir o schema.
 - Migrações e concessões administrativas são operações explícitas de operador.

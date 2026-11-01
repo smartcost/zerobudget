@@ -203,7 +203,7 @@ return Ok(old);
             }
             sqlx::query("INSERT INTO budgeting.cycles(id,owner_id,period_start,period_end,income_cents,carried_cents,source_cycle_id,copy_request_id,copy_mode) VALUES($1,$2,$3,$4,$5,$6,$7,$1,$8)").bind(input.request_id).bind(owner).bind(input.period_start).bind(input.period_end).bind(income).bind(carried).bind(source).bind(&input.mode).execute(&mut *tx).await?;
             for (name, amount) in copied {
-                sqlx::query("INSERT INTO budgeting.envelopes(id,owner_id,cycle_id,name,allocated_cents) VALUES(gen_random_uuid(),$1,$2,$3,$4)").bind(owner).bind(input.request_id).bind(name).bind(amount).execute(&mut *tx).await?;
+                sqlx::query("INSERT INTO budgeting.envelopes(id,owner_id,cycle_id,name,allocated_cents) VALUES(uuidv7(),$1,$2,$3,$4)").bind(owner).bind(input.request_id).bind(name).bind(amount).execute(&mut *tx).await?;
             }
             let record = Self::cycle(&mut tx, owner, input.request_id).await?;
             tx.commit().await?;

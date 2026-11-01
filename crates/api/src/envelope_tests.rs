@@ -32,7 +32,7 @@ async fn request(
 ) -> Response {
     if method == "POST" && (path.ends_with("/expenses") || path.ends_with("/receipts") || path.ends_with("/transfers")) {
         if let Some(object) = body.as_object_mut() {
-            object.entry("request_id").or_insert_with(|| serde_json::json!(Uuid::new_v4()));
+            object.entry("request_id").or_insert_with(|| serde_json::json!(Uuid::now_v7()));
         }
     }
     let mut request = axum::http::Request::builder()
@@ -307,7 +307,7 @@ async fn envelopes_http_crud_validation_permissions_and_isolation() {
     assert_eq!(
         s.write(
             "PATCH",
-            &format!("/api/cycles/{}/envelopes/{id}", Uuid::new_v4()),
+            &format!("/api/cycles/{}/envelopes/{id}", Uuid::now_v7()),
             json!({"name":"Wrong"})
         )
         .await
@@ -393,7 +393,7 @@ async fn envelopes_http_crud_validation_permissions_and_isolation() {
         .await
         .unwrap();
     assert_eq!(count, 0);
-    assert!(sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,'forged',0)").bind(Uuid::new_v4()).bind(s.cycle).bind(s.user).execute(&mut *tx).await.is_err());
+    assert!(sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,'forged',0)").bind(Uuid::now_v7()).bind(s.cycle).bind(s.user).execute(&mut *tx).await.is_err());
     tx.rollback().await.unwrap();
     for statement in [
         "UPDATE budgeting.envelopes SET owner_id=owner_id",
@@ -501,7 +501,7 @@ async fn envelope_allocation_serializes_concurrent_creates_updates_and_raw_sql()
             .bind(owner.to_string())
             .execute(&mut *tx)
             .await?;
-        sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,$4,6000)").bind(Uuid::new_v4()).bind(cycle).bind(owner).bind(name).execute(&mut *tx).await?;
+        sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,$4,6000)").bind(Uuid::now_v7()).bind(cycle).bind(owner).bind(name).execute(&mut *tx).await?;
         tx.commit().await
     }
     let mut first = s.runtime.pool().begin().await.unwrap();
@@ -510,7 +510,7 @@ async fn envelope_allocation_serializes_concurrent_creates_updates_and_raw_sql()
         .execute(&mut *first)
         .await
         .unwrap();
-    sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,'RawA',6000)").bind(Uuid::new_v4()).bind(s.cycle).bind(s.user).execute(&mut *first).await.unwrap();
+    sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,'RawA',6000)").bind(Uuid::now_v7()).bind(s.cycle).bind(s.user).execute(&mut *first).await.unwrap();
     let runtime = s.runtime.clone();
     let owner = s.user;
     let cycle = s.cycle;
@@ -545,7 +545,7 @@ async fn envelope_allocation_serializes_concurrent_creates_updates_and_raw_sql()
         .execute(&mut *tx)
         .await
         .unwrap();
-    let error=sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,'Unsupported snapshot',0)").bind(Uuid::new_v4()).bind(s.cycle).bind(s.user).execute(&mut *tx).await.unwrap_err();
+    let error=sqlx::query("INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES($1,$2,$3,'Unsupported snapshot',0)").bind(Uuid::now_v7()).bind(s.cycle).bind(s.user).execute(&mut *tx).await.unwrap_err();
     assert_eq!(
         error.as_database_error().unwrap().code().as_deref(),
         Some("25000")
@@ -665,7 +665,7 @@ async fn lifecycle_sql_enforces_transitions_frozen_allocations_and_minimal_privi
     for status in ["active","closed"] {
         if status=="closed" { lifecycle_sql(&s,"UPDATE budgeting.cycles SET status='closed' WHERE id=$1 AND owner_id=$2").await.unwrap(); }
         for statement in [
-            "INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES(gen_random_uuid(),$1,$2,'Zero',0)",
+            "INSERT INTO budgeting.envelopes(id,cycle_id,owner_id,name,allocated_cents) VALUES(uuidv7(),$1,$2,'Zero',0)",
             "UPDATE budgeting.envelopes SET name='Renamed' WHERE cycle_id=$1 AND owner_id=$2",
             "UPDATE budgeting.envelopes SET allocated_cents=0 WHERE cycle_id=$1 AND owner_id=$2",
             "DELETE FROM budgeting.envelopes WHERE cycle_id=$1 AND owner_id=$2",

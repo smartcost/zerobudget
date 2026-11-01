@@ -85,7 +85,7 @@ impl ExpenseService {
         envelope: Uuid,
         input: ExpenseInput,
     ) -> Result<BudgetExpense, CycleError> {
-        self.create_with_id(user, cycle, envelope, Uuid::new_v4(), input)
+        self.create_with_id(user, cycle, envelope, Uuid::now_v7(), input)
             .await
     }
     pub async fn create_with_id(
@@ -98,7 +98,7 @@ impl ExpenseService {
     ) -> Result<BudgetExpense, CycleError> {
         user.require(Permission::WriteBudget)
             .map_err(|_| CycleError::Forbidden)?;
-        if request_id.is_nil() {
+        if request_id.get_version_num() != 7 || request_id.get_variant() != uuid::Variant::RFC4122 {
             return Err(CycleError::Invalid);
         }
         let expense = Expense::new(
@@ -204,10 +204,10 @@ mod tests {
     async fn permissions_and_input_precede_storage_and_owner_comes_from_user() {
         let repo = Arc::new(Repository::default());
         let service = ExpenseService::new(repo.clone());
-        let owner = Uuid::new_v4();
-        let cycle = Uuid::new_v4();
-        let envelope = Uuid::new_v4();
-        let id = Uuid::new_v4();
+        let owner = Uuid::now_v7();
+        let cycle = Uuid::now_v7();
+        let envelope = Uuid::now_v7();
+        let id = Uuid::now_v7();
         let date = NaiveDate::from_ymd_opt(2026, 10, 30).unwrap();
         let denied = LocalUser::from_persisted(owner, Default::default());
         assert!(matches!(
@@ -217,7 +217,7 @@ mod tests {
                     cycle,
                     envelope,
                     ExpenseInput {
-                        funding: ExpenseFunding::Account(Uuid::new_v4()),
+                        funding: ExpenseFunding::Account(Uuid::now_v7()),
                         description: "A".into(),
                         date,
                         amount_cents: 1
@@ -244,7 +244,7 @@ mod tests {
                         cycle,
                         envelope,
                         ExpenseInput {
-                            funding: ExpenseFunding::Account(Uuid::new_v4()),
+                            funding: ExpenseFunding::Account(Uuid::now_v7()),
                             description: description.into(),
                             date,
                             amount_cents: amount
@@ -271,7 +271,7 @@ mod tests {
                     cycle,
                     envelope,
                     ExpenseInput {
-                        funding: ExpenseFunding::Account(Uuid::new_v4()),
+                        funding: ExpenseFunding::Account(Uuid::now_v7()),
                         description: "A".into(),
                         date,
                         amount_cents: 1
@@ -291,7 +291,7 @@ mod tests {
                 cycle,
                 envelope,
                 ExpenseInput {
-                    funding: ExpenseFunding::Account(Uuid::new_v4()),
+                    funding: ExpenseFunding::Account(Uuid::now_v7()),
                     description: "A".into(),
                     date,
                     amount_cents: 1,

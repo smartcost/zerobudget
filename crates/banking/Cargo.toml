@@ -7,7 +7,7 @@ obz-domain = { path = "../domain" }
 obz-auth = { path = "../auth" }
 async-trait = "0.1"
 chrono = "0.4"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v7"] }
 thiserror = "2"
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

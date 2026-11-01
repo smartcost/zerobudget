@@ -14,7 +14,7 @@ sha2 = "0.10"
 redis = { version = "0.32.7", default-features = false, features = ["tokio-rustls-comp", "connection-manager", "script"] }
 tokio = { version = "1", features = ["sync", "time"] }
 
-uuid = { version = "1", features = ["v4", "serde"] }
+uuid = { version = "1", features = ["v7", "serde"] }
 url = "2"
 
 [dev-dependencies]

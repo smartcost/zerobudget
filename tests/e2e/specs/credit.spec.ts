@@ -1,3 +1,4 @@
+import { uuidv7 } from "../fixtures/uuid.js";
 import { test, expect, type Actor } from "../fixtures/auth.js";
 import {
   body,
@@ -27,7 +28,7 @@ type Invoice = {
 async function card(actor: Actor, limit = 100) {
   return body<Card>(
     await actor.api.send("POST", "/api/cards", {
-      name: `Card-${crypto.randomUUID()}`,
+      name: `Card-${uuidv7()}`,
       opened_on: "0001-01-01",
       credit_limit_cents: limit,
     }),
@@ -105,7 +106,7 @@ test("compra consome envelope; pagamento parcial e quitação não consomem nova
   expect(c.outstanding_cents).toBe(50);
   expect(c.available_credit_cents).toBe(50);
   const pay = {
-    request_id: crypto.randomUUID(),
+    request_id: uuidv7(),
     account_id: a.id,
     description: "Bill",
     occurred_on: s.b.period_end,
@@ -126,7 +127,7 @@ test("compra consome envelope; pagamento parcial e quitação não consomem nova
   const p2 = await body<any>(
     await alice.api.send("POST", s.base + "/payments", {
       ...pay,
-      request_id: crypto.randomUUID(),
+      request_id: uuidv7(),
       amount_cents: 30,
     }),
     201,
@@ -279,7 +280,7 @@ test("pagamento sem saldo reverte tudo e pagamentos integrais concorrentes debit
   await purchase(alice, s, 50);
   await alice.api.send("POST", s.base + "/close");
   const pay = {
-    request_id: crypto.randomUUID(),
+    request_id: uuidv7(),
     account_id: a.id,
     description: "Pay",
     occurred_on: s.b.period_end,
@@ -320,7 +321,7 @@ test("cartões e faturas respeitam proprietário, CSRF, origem e revogação", a
   const bob = await login("bob");
   const a = await account(bob, 100);
   const pay = {
-    request_id: crypto.randomUUID(),
+    request_id: uuidv7(),
     account_id: a.id,
     description: "Forbidden",
     occurred_on: s.b.period_end,
@@ -403,7 +404,7 @@ test("identificadores diferentes disputam a dívida e replay com dados alterados
   await purchase(alice, s, 50);
   await alice.api.send("POST", s.base + "/close");
   const pay = {
-    request_id: crypto.randomUUID(),
+    request_id: uuidv7(),
     account_id: a.id,
     description: "Pay",
     occurred_on: s.b.period_end,
@@ -413,7 +414,7 @@ test("identificadores diferentes disputam a dívida e replay com dados alterados
     alice.api.send("POST", s.base + "/payments", pay),
     alice.api.send("POST", s.base + "/payments", {
       ...pay,
-      request_id: crypto.randomUUID(),
+      request_id: uuidv7(),
     }),
   ]);
   expect(results.map((r) => r.status()).sort()).toEqual([201, 409]);

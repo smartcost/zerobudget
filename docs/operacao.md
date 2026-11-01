@@ -12,6 +12,9 @@ Não use credenciais do Docker Compose de desenvolvimento em produção.
 2. Configure Keycloak por HTTPS, cliente confidencial e callback exato
    `https://SEU_DOMINIO/api/auth/callback`. O navegador e o backend precisam
    alcançar o mesmo issuer público. Defina a política de contas/MFA no provedor.
+   Use a imagem Keycloak com a política de revogação de sessões do projeto. Configure
+   SMTP real, remetente e URLs públicas; teste confirmação de e-mail e recuperação
+   fora do Mailpit. Veja [setup Keycloak](setup-keycloak.md).
 3. Copie `deploy/production.env.example` para `deploy/.env.production`, preencha
    URLs/segredos e aplique `chmod 600`. Certificados privados devem ser montados
    em modo somente leitura; use `sslrootcert` na URL do PostgreSQL se necessário.
@@ -22,14 +25,22 @@ Não use credenciais do Docker Compose de desenvolvimento em produção.
    e `DATABASE_RUNTIME_ROLE=zerobudget_runtime`. Em produção deixe
    `AUTH_ALLOW_LOCAL_HTTP=false`. O mesmo comando pode ser executado substituindo
    o entrypoint da imagem por `zb-migrate`. Nunca coloque DATABASE_ADMIN_URL no
-   serviço HTTP. O operador deve revisar as migrações 0008 e 0009 e os privilégios
-   de INSERT nas novas tabelas, SELECT nas views e colunas de metadados dos ciclos.
+   serviço HTTP. Revise todas as migrações pendentes e faça backup antes de atualizar
+   uma base existente. O histórico atual vai até 0011: planejamento/correções
+   (0008/0009), onboarding auditado (0010) e UUIDv7 (0011). Preserve os privilégios
+   mínimos de tabelas/views e EXECUTE somente nas duas funções de onboarding;
+   runtime não pode escrever diretamente permissões, auditoria ou marcador.
+   Conclua operações pendentes com request_id v4 antes da atualização: a nova API
+   exige v7, inclusive em retries. Não substitua uma chave cujo resultado é incerto.
+   A 0011 não converte IDs históricos nem amplia os privilégios runtime.
 6. Defina `API_DOMAIN` e execute `docker compose -f deploy/compose.yaml up -d --build`.
    Caddy termina TLS; apenas ele publica portas. Provisione DNS e acesso ACME nas
    portas 80/443. Bancos e Keycloak são serviços externos ao template.
 7. Verifique `/health` (204: processo vivo) e `/ready` (204: PostgreSQL, sessões e Keycloak
-   disponíveis; 503 se uma dependência falhar). Faça login real e uma operação
-   financeira controlada na conta do piloto antes de liberar uso.
+   disponíveis; 503 se uma dependência falhar). Valide cadastro, entrega de e-mail,
+   confirmação, login, onboarding explícito e uma operação financeira controlada
+   na conta do piloto antes de liberar uso. Confira também recuperação de senha
+   com revogação de sessões e isolamento entre duas contas.
 
 As requisições geram JSON no stderr com request_id, método, rota parametrizada,
 status e duração. A resposta contém X-Request-Id. Não são registrados query string,
@@ -39,10 +50,22 @@ readiness consulta também seu endpoint JWKS. Falha do provedor resulta em 503.
 
 ## Acesso ao piloto
 
-O participante faz login em `/auth/session`, obtendo `user_id` em `/api/auth/me`.
-Confirme a identidade junto ao participante antes de conceder acesso. Login continua
-sem permissões financeiras por padrão. Com DATABASE_ADMIN_URL apenas no terminal
-do operador:
+O participante inicia o cadastro em `/api/auth/signup`, confirma o e-mail e faz
+login. `/auth/session` é uma página técnica de apoio, não a interface do produto.
+O login continua sem permissões financeiras por padrão. A sessão e o CSRF podem
+ser consultados em `/api/auth/me`.
+
+Para a conta elegível, consulte `GET /api/onboarding` e conclua explicitamente com
+`POST /api/onboarding`, JSON `{}`, cookie da sessão e X-CSRF-Token. Esse POST concede
+budget:read/write uma única vez, com auditoria atômica. O GET retorna o próximo passo
+(conta, ciclo, alocação, ativação ou primeira despesa), sem criar recursos financeiros.
+Consulte o [contrato de onboarding](onboarding.md) e a coleção em `docs/api/`.
+
+Não use a CLI como preparação para uma conta que deva percorrer o onboarding:
+decisões administrativas anteriores tornam a conta inelegível à auto-habilitação.
+Contas sob gestão administrativa continuam acessíveis conforme suas permissões.
+Para uma concessão deliberada, confirme a identidade e use DATABASE_ADMIN_URL
+somente no terminal do operador; substitua UUID pelo user_id de `/api/auth/me`:
 
 ```sh
 cargo run --locked -p obz-infrastructure --example auth_admin -- grant UUID budget:read
@@ -51,8 +74,18 @@ cargo run --locked -p obz-infrastructure --example auth_admin -- grant UUID budg
 
 A CLI registra auditoria. Para revogar, use `revoke UUID budget:write` e/ou
 `revoke UUID budget:read`; `disable UUID` bloqueia a conta local. A próxima
-requisição consulta os privilégios atuais. `enable UUID` reabilita explicitamente.
-Nenhuma interface administrativa ou concessão automática foi adicionada.
+requisição consulta os privilégios atuais. `enable UUID` reabilita explicitamente,
+sem restaurar direitos. Login, GET e repetição do onboarding não desfazem revogações.
+Não existe interface administrativa nesta entrega.
+
+## Atualização local UUIDv7
+
+A migração 0011 foi aplicada ao banco local em 01/11/2026 com backup prévio validado.
+Não foi feita implantação pública nem reinício automático da API. Para outros
+ambientes, use o procedimento de migração acima. O diagnóstico somente de leitura
+`docs/sql/postgresql-18.sql` confere defaults e triggers sem alterar dados.
+Os detalhes de compatibilidade e as decisões de I/O estão em
+[PostgreSQL 18](postgresql-18.md).
 
 ## Backup e recuperação
 

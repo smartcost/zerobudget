@@ -95,7 +95,7 @@ async fn raw_purchase(
     date: chrono::NaiveDate,
 ) -> Result<sqlx::postgres::PgQueryResult, sqlx::Error> {
     let mut tx = begin(s).await;
-    let result=sqlx::query("INSERT INTO budgeting.expenses(id,owner_id,cycle_id,envelope_id,invoice_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,$2,$3,$4,'Credit',$5,$6)").bind(s.user).bind(cycle).bind(envelope).bind(invoice).bind(date).bind(amount).execute(&mut *tx).await;
+    let result=sqlx::query("INSERT INTO budgeting.expenses(id,owner_id,cycle_id,envelope_id,invoice_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,$2,$3,$4,'Credit',$5,$6)").bind(s.user).bind(cycle).bind(envelope).bind(invoice).bind(date).bind(amount).execute(&mut *tx).await;
     if result.is_ok() {
         tx.commit().await.unwrap();
     } else {
@@ -105,7 +105,7 @@ async fn raw_purchase(
 }
 fn payment(s: &Setup, date: chrono::NaiveDate, amount: i64) -> PaymentInput {
     PaymentInput {
-        request_id: Uuid::new_v4(),
+        request_id: Uuid::now_v7(),
         account_id: s.account,
         movement: MovementInput {
             description: "Bill".into(),
@@ -153,7 +153,7 @@ async fn credit_sql_limits_payments_immutability_and_exact_history() {
     );
     let credit = s.fixture.state.credit.as_ref().unwrap();
     let mut tx = begin(&s).await;
-    let open_payment=sqlx::query("INSERT INTO banking.card_payments(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,$2,$3,'Open',DATE '2026-11-01',1)").bind(s.user).bind(first).bind(s.account).execute(&mut *tx).await;
+    let open_payment=sqlx::query("INSERT INTO banking.card_payments(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,$2,$3,'Open',DATE '2026-11-01',1)").bind(s.user).bind(first).bind(s.account).execute(&mut *tx).await;
     assert_eq!(sqlstate(open_payment.unwrap_err()), "ZC002");
     tx.rollback().await.unwrap();
     credit.close(&actor(&s), card, first).await.unwrap();
@@ -230,7 +230,7 @@ async fn credit_sql_limits_payments_immutability_and_exact_history() {
         .unwrap();
     assert_eq!(count, 0);
     let mut tx = begin(&s).await;
-    let overpay=sqlx::query("INSERT INTO banking.card_payments(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,$2,$3,'Overpay',DATE '2026-12-01',1)").bind(s.user).bind(second).bind(s.account).execute(&mut *tx).await;
+    let overpay=sqlx::query("INSERT INTO banking.card_payments(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,$2,$3,'Overpay',DATE '2026-12-01',1)").bind(s.user).bind(second).bind(s.account).execute(&mut *tx).await;
     assert_eq!(sqlstate(overpay.unwrap_err()), "ZC004");
     tx.rollback().await.unwrap();
     let mut tx = begin(&s).await;
@@ -259,7 +259,7 @@ async fn credit_sql_limits_payments_immutability_and_exact_history() {
         );
     }
     let mut tx = begin(&s).await;
-    let forged=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,description,occurred_on,amount_cents,card_payment_id) VALUES(gen_random_uuid(),$1,'card_payment',$2,'Forged',DATE '2026-12-01',1,$3)").bind(s.user).bind(s.account).bind(Uuid::new_v4()).execute(&mut *tx).await;
+    let forged=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,description,occurred_on,amount_cents,card_payment_id) VALUES(uuidv7(),$1,'card_payment',$2,'Forged',DATE '2026-12-01',1,$3)").bind(s.user).bind(s.account).bind(Uuid::now_v7()).execute(&mut *tx).await;
     assert_eq!(sqlstate(forged.unwrap_err()), "ZB004");
     tx.rollback().await.unwrap();
     s.db.destroy().await;
@@ -291,7 +291,7 @@ async fn credit_raw_concurrent_purchases_observe_committed_global_limit() {
         .unwrap();
     let (cycle2, e2) = scope(&s, 11, 100).await;
     let mut first_tx = begin(&s).await;
-    sqlx::query("INSERT INTO budgeting.expenses(id,owner_id,cycle_id,envelope_id,invoice_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,$2,$3,$4,'First',DATE '2026-10-01',100)").bind(s.user).bind(s.cycle).bind(e.id).bind(first).execute(&mut *first_tx).await.unwrap();
+    sqlx::query("INSERT INTO budgeting.expenses(id,owner_id,cycle_id,envelope_id,invoice_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,$2,$3,$4,'First',DATE '2026-10-01',100)").bind(s.user).bind(s.cycle).bind(e.id).bind(first).execute(&mut *first_tx).await.unwrap();
     let runtime = s.runtime.clone();
     let owner = s.user;
     let mut pending = tokio::spawn(async move {
@@ -301,7 +301,7 @@ async fn credit_raw_concurrent_purchases_observe_committed_global_limit() {
             .execute(&mut *tx)
             .await
             .unwrap();
-        let result=sqlx::query("INSERT INTO budgeting.expenses(id,owner_id,cycle_id,envelope_id,invoice_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,$2,$3,$4,'Second',DATE '2026-11-01',100)").bind(owner).bind(cycle2).bind(e2).bind(second).execute(&mut *tx).await;
+        let result=sqlx::query("INSERT INTO budgeting.expenses(id,owner_id,cycle_id,envelope_id,invoice_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,$2,$3,$4,'Second',DATE '2026-11-01',100)").bind(owner).bind(cycle2).bind(e2).bind(second).execute(&mut *tx).await;
         tx.rollback().await.unwrap();
         result
     });

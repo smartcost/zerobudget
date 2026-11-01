@@ -83,7 +83,9 @@ impl FinanceService {
         input: CorrectionInput,
     ) -> Result<Correction, BankingError> {
         require(user, Permission::WriteBudget)?;
-        if input.request_id.is_nil() {
+        if input.request_id.get_version_num() != 7
+            || input.request_id.get_variant() != uuid::Variant::RFC4122
+        {
             return Err(BankingError::Invalid);
         }
         let note = FinanceNote::new(&input.description, input.occurred_on.num_days_from_ce())
@@ -106,7 +108,10 @@ impl FinanceService {
         input: OpeningDebtInput,
     ) -> Result<CreditEntry, BankingError> {
         require(user, Permission::WriteBudget)?;
-        if input.request_id.is_nil() || input.amount_cents <= 0 {
+        if input.request_id.get_version_num() != 7
+            || input.request_id.get_variant() != uuid::Variant::RFC4122
+            || input.amount_cents <= 0
+        {
             return Err(BankingError::Invalid);
         }
         let note = FinanceNote::new(&input.description, input.occurred_on.num_days_from_ce())
@@ -133,7 +138,8 @@ impl FinanceService {
         input: CardCreditInput,
     ) -> Result<CreditEntry, BankingError> {
         require(user, Permission::WriteBudget)?;
-        if input.request_id.is_nil()
+        if input.request_id.get_version_num() != 7
+            || input.request_id.get_variant() != uuid::Variant::RFC4122
             || input.expense_id.is_some() == input.opening_debt_id.is_some()
         {
             return Err(BankingError::Invalid);

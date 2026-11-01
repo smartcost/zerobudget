@@ -96,7 +96,7 @@ impl PostgresIdentityRepository {
                 sqlx::query("DELETE FROM auth.permissions WHERE user_id = $1 AND permission = $2").bind(user_id).bind(permission.as_str()).execute(&mut *transaction).await?.rows_affected()
             };
             if changed > 0 {
-                sqlx::query("INSERT INTO auth.audit_events (id, user_id, action, permission) VALUES ($1, $2, $3, $4)").bind(Uuid::new_v4()).bind(user_id).bind(action).bind(permission.as_str()).execute(&mut *transaction).await?;
+                sqlx::query("INSERT INTO auth.audit_events (id, user_id, action, permission) VALUES ($1, $2, $3, $4)").bind(Uuid::now_v7()).bind(user_id).bind(action).bind(permission.as_str()).execute(&mut *transaction).await?;
             }
             transaction.commit().await?;
             Ok(true)
@@ -122,7 +122,7 @@ impl PostgresIdentityRepository {
                 sqlx::query(
                     "INSERT INTO auth.audit_events (id, user_id, action) VALUES ($1, $2, $3)",
                 )
-                .bind(Uuid::new_v4())
+                .bind(Uuid::now_v7())
                 .bind(user_id)
                 .bind(if enabled { "enable" } else { "disable" })
                 .execute(&mut *transaction)
@@ -152,7 +152,7 @@ impl IdentityRepository for PostgresIdentityRepository {
         identity.validate_current()?;
         self.bounded(async {
             sqlx::query("INSERT INTO auth.users (id, issuer, subject, last_login_at) VALUES ($1, $2, $3, now()) ON CONFLICT (issuer, subject) DO UPDATE SET last_login_at = EXCLUDED.last_login_at WHERE auth.users.enabled")
-                .bind(Uuid::new_v4()).bind(identity.issuer()).bind(identity.subject()).execute(&self.pool).await?;
+                .bind(Uuid::now_v7()).bind(identity.issuer()).bind(identity.subject()).execute(&self.pool).await?;
             Ok(())
         }).await?;
         self.find(identity).await

@@ -31,3 +31,5 @@ Cartões e faturas manuais: [compras, limite e pagamentos](docs/cartoes.md).
 - [Checklist da entrega backend](docs/backend-mvp.md)
 
 - [Onboarding financeiro e estado inicial](docs/onboarding.md)
+
+- [UUIDv7 e decisões de arquitetura para PostgreSQL 18](docs/postgresql-18.md)

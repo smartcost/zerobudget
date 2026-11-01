@@ -130,7 +130,7 @@ impl CreditService {
         )
         .map_err(|_| BankingError::Invalid)?;
         self.repository
-            .create(user.id(), Uuid::new_v4(), card)
+            .create(user.id(), Uuid::now_v7(), card)
             .await
     }
     pub async fn list(
@@ -166,7 +166,7 @@ impl CreditService {
         )
         .map_err(|_| BankingError::Invalid)?;
         self.repository
-            .open(user.id(), Uuid::new_v4(), card, period)
+            .open(user.id(), Uuid::now_v7(), card, period)
             .await
     }
     pub async fn invoices(
@@ -213,7 +213,9 @@ impl CreditService {
         input: PaymentInput,
     ) -> Result<CardPayment, BankingError> {
         require(user, Permission::WriteBudget)?;
-        if input.request_id.is_nil() {
+        if input.request_id.get_version_num() != 7
+            || input.request_id.get_variant() != uuid::Variant::RFC4122
+        {
             return Err(BankingError::Invalid);
         }
         let movement = CashMovement::new(
@@ -371,10 +373,10 @@ mod tests {
     async fn credit_authorization_validation_and_operation_id_precede_storage() {
         let repo = Arc::new(Repository::default());
         let service = CreditService::new(repo.clone());
-        let owner = Uuid::new_v4();
-        let card = Uuid::new_v4();
-        let invoice = Uuid::new_v4();
-        let account = Uuid::new_v4();
+        let owner = Uuid::now_v7();
+        let card = Uuid::now_v7();
+        let invoice = Uuid::now_v7();
+        let account = Uuid::now_v7();
         let date = NaiveDate::from_ymd_opt(2026, 10, 1).unwrap();
         let denied = LocalUser::from_persisted(owner, Default::default());
         let reader =
@@ -392,7 +394,7 @@ mod tests {
             due_on: NaiveDate::from_ymd_opt(2026, 11, 10).unwrap(),
         };
         let payment = PaymentInput {
-            request_id: Uuid::new_v4(),
+            request_id: Uuid::now_v7(),
             account_id: account,
             movement: MovementInput {
                 description: "Bill".into(),

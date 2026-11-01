@@ -325,3 +325,9 @@ endpoints. O caminho recomendado de regressão continua sendo Playwright.
 O cadastro não concede direitos no login. Para a primeira habilitação, use
 `POST /api/onboarding` com `{}` e CSRF; a consulta usa `GET /api/onboarding`.
 Consulte [o guia](../onboarding.md) para elegibilidade, estados e revogações.
+
+## Identificadores
+
+Novos IDs locais e `request_id` usam UUIDv7. Preserve a chave em retries.
+O servidor recusa outras versões em `request_id` com HTTP 422; referências históricas
+continuam consultáveis por seus IDs originais. Veja [decisões PostgreSQL 18](../postgresql-18.md).

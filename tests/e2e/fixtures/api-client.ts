@@ -1,3 +1,4 @@
+import { uuidv7 } from "./uuid.js";
 import {
   expect,
   type APIRequestContext,
@@ -61,7 +62,7 @@ export class ApiClient {
     data?: unknown,
     options: { csrf?: boolean; origin?: string } = {},
   ): Promise<APIResponse> {
-    if(method === "POST" && /(?:\/expenses|\/receipts|\/transfers)$/.test(url) && data && typeof data === "object" && !("request_id" in data)) data={...data,request_id:crypto.randomUUID()};
+    if(method === "POST" && /(?:\/expenses|\/receipts|\/transfers)$/.test(url) && data && typeof data === "object" && !("request_id" in data)) data={...data,request_id:uuidv7()};
     const headers: Record<string, string> = {};
     if (!["GET", "HEAD", "OPTIONS"].includes(method) && options.csrf !== false)
       headers["X-CSRF-Token"] = this.csrf;

@@ -1,3 +1,4 @@
+import { uuidv7 } from "../fixtures/uuid.js";
 import { test, expect } from "../fixtures/auth.js";
 import {
   body,
@@ -112,7 +113,7 @@ test("valida contas, movimentos, data de abertura e conta obrigatória", async (
   ])
     await rejection(
       await alice.api.send("POST", "/api/accounts", {
-        name: `Invalid-${crypto.randomUUID()}`,
+        name: `Invalid-${uuidv7()}`,
         kind: "bank",
         opened_on: date,
         opening_balance_cents: 0,

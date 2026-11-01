@@ -58,21 +58,21 @@ async fn banking_sql_guards_funds_immutability_rls_and_integer_limits() {
     s.grant_read().await;
     let target = target(&s).await;
     let mut batch_tx = begin(&s).await;
-    let batch=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,'transfer',$2,$3,'Batch A',DATE '2026-10-01',$4),(gen_random_uuid(),$1,'transfer',$2,$3,'Batch B',DATE '2026-10-01',1)")
+    let batch=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,'transfer',$2,$3,'Batch A',DATE '2026-10-01',$4),(uuidv7(),$1,'transfer',$2,$3,'Batch B',DATE '2026-10-01',1)")
         .bind(s.user).bind(s.account).bind(target).bind(i64::MAX).execute(&mut *batch_tx).await;
     assert_eq!(sqlstate(batch.unwrap_err()), "ZB005");
     batch_tx.rollback().await.unwrap();
     let mut tx = begin(&s).await;
-    sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,'transfer',$2,$3,'All',DATE '2026-10-01',$4)").bind(s.user).bind(s.account).bind(target).bind(i64::MAX).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,'transfer',$2,$3,'All',DATE '2026-10-01',$4)").bind(s.user).bind(s.account).bind(target).bind(i64::MAX).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     assert_eq!(balance(&s, s.account).await, 0);
     assert_eq!(balance(&s, target).await, i64::MAX);
     let mut tx = begin(&s).await;
-    let excessive=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,to_account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,'receipt',$2,'Overflow',DATE '2026-10-01',1)").bind(s.user).bind(target).execute(&mut *tx).await;
+    let excessive=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,to_account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,'receipt',$2,'Overflow',DATE '2026-10-01',1)").bind(s.user).bind(target).execute(&mut *tx).await;
     assert_eq!(sqlstate(excessive.unwrap_err()), "ZB006");
     tx.rollback().await.unwrap();
     let mut tx = begin(&s).await;
-    let excessive=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,'transfer',$2,$3,'Overdraft',DATE '2026-10-01',1)").bind(s.user).bind(s.account).bind(target).execute(&mut *tx).await;
+    let excessive=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,'transfer',$2,$3,'Overdraft',DATE '2026-10-01',1)").bind(s.user).bind(s.account).bind(target).execute(&mut *tx).await;
     assert_eq!(sqlstate(excessive.unwrap_err()), "ZB005");
     tx.rollback().await.unwrap();
     s.fixture
@@ -90,7 +90,7 @@ async fn banking_sql_guards_funds_immutability_rls_and_integer_limits() {
         .await
         .unwrap();
     assert_eq!(count, 0);
-    let forged=sqlx::query("INSERT INTO banking.accounts(id,owner_id,name,kind,opened_on,opening_balance_cents) VALUES(gen_random_uuid(),$1,'Forged','cash',DATE '0001-01-01',0)").bind(s.user).execute(s.runtime.pool()).await;
+    let forged=sqlx::query("INSERT INTO banking.accounts(id,owner_id,name,kind,opened_on,opening_balance_cents) VALUES(uuidv7(),$1,'Forged','cash',DATE '0001-01-01',0)").bind(s.user).execute(s.runtime.pool()).await;
     assert_eq!(sqlstate(forged.unwrap_err()), "42501");
     let mut stale_tx = s.runtime.pool().begin().await.unwrap();
     sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
@@ -102,7 +102,7 @@ async fn banking_sql_guards_funds_immutability_rls_and_integer_limits() {
         .execute(&mut *stale_tx)
         .await
         .unwrap();
-    let stale=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,to_account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,'receipt',$2,'Stale',DATE '2026-10-01',1)").bind(s.user).bind(target).execute(&mut *stale_tx).await;
+    let stale=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,to_account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,'receipt',$2,'Stale',DATE '2026-10-01',1)").bind(s.user).bind(target).execute(&mut *stale_tx).await;
     assert_eq!(sqlstate(stale.unwrap_err()), "25000");
     stale_tx.rollback().await.unwrap();
     for statement in [
@@ -139,7 +139,7 @@ async fn banking_sql_guards_funds_immutability_rls_and_integer_limits() {
     tx.rollback().await.unwrap();
     // Direct SQL cannot forge a debit or refund without the matching budget record.
     let mut tx = begin(&s).await;
-    let forged=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,to_account_id,description,occurred_on,amount_cents,expense_id) VALUES(gen_random_uuid(),$1,'expense_reversal',$2,'Forged',DATE '2026-10-01',1,$3)").bind(s.user).bind(target).bind(Uuid::new_v4()).execute(&mut *tx).await;
+    let forged=sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,to_account_id,description,occurred_on,amount_cents,expense_id) VALUES(uuidv7(),$1,'expense_reversal',$2,'Forged',DATE '2026-10-01',1,$3)").bind(s.user).bind(target).bind(Uuid::now_v7()).execute(&mut *tx).await;
     assert_eq!(sqlstate(forged.unwrap_err()), "ZB004");
     tx.rollback().await.unwrap();
     s.db.destroy().await;
@@ -169,7 +169,7 @@ async fn banking_transfer_and_expense_share_funds_and_refund_failure_is_atomic()
     )
     .await;
     let mut tx = begin(&s).await;
-    sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(gen_random_uuid(),$1,'transfer',$2,$3,'Race',DATE '2026-10-01',100)").bind(s.user).bind(s.account).bind(target).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES(uuidv7(),$1,'transfer',$2,$3,'Race',DATE '2026-10-01',100)").bind(s.user).bind(s.account).bind(target).execute(&mut *tx).await.unwrap();
     let service = s.fixture.state.expenses.clone().unwrap();
     let user = actor(&s);
     let cycle = s.cycle;
@@ -246,10 +246,10 @@ async fn banking_migration_preserves_unlinked_expenses_and_does_not_invent_balan
     {
         sqlx::raw_sql(&m.sql).execute(owner.pool()).await.unwrap();
     }
-    let user = Uuid::new_v4();
-    let cycle = Uuid::new_v4();
-    let envelope = Uuid::new_v4();
-    let expense = Uuid::new_v4();
+    let user = Uuid::now_v7();
+    let cycle = Uuid::now_v7();
+    let envelope = Uuid::now_v7();
+    let expense = Uuid::now_v7();
     let mut tx = owner.pool().begin().await.unwrap();
     sqlx::query(
         "INSERT INTO auth.users(id,issuer,subject) VALUES($1,'http://legacy.invalid','legacy')",

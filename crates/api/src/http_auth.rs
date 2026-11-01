@@ -474,7 +474,7 @@ async fn ready(State(state): State<AppState>) -> StatusCode {
 }
 async fn access_log(request: Request, next: Next) -> Response {
     let start = std::time::Instant::now();
-    let id = uuid::Uuid::new_v4().to_string();
+    let id = uuid::Uuid::now_v7().to_string();
     let method = request.method().to_string();
     let route = request
         .extensions()
@@ -1531,8 +1531,8 @@ mod tests {
                 .status(),
             StatusCode::PAYLOAD_TOO_LARGE
         );
-        let other = uuid::Uuid::new_v4();
-        let foreign = uuid::Uuid::new_v4();
+        let other = uuid::Uuid::now_v7();
+        let foreign = uuid::Uuid::now_v7();
         sqlx::query(
             "INSERT INTO auth.users(id,issuer,subject) VALUES($1,'https://other.example','other')",
         )
@@ -1585,7 +1585,7 @@ mod tests {
             visible, 1,
             "RLS must hide the foreign cycle even without an application owner filter"
         );
-        assert!(sqlx::query("INSERT INTO budgeting.cycles(id,owner_id,period_start,period_end,income_cents) VALUES($1,$2,'2027-01-01','2027-02-01',1)").bind(uuid::Uuid::new_v4()).bind(other).execute(&mut *tx).await.is_err());
+        assert!(sqlx::query("INSERT INTO budgeting.cycles(id,owner_id,period_start,period_end,income_cents) VALUES($1,$2,'2027-01-01','2027-02-01',1)").bind(uuid::Uuid::now_v7()).bind(other).execute(&mut *tx).await.is_err());
         tx.rollback().await.unwrap();
         owner.revoke(user, Permission::ReadBudget).await.unwrap();
         assert_eq!(
@@ -1673,7 +1673,7 @@ mod tests {
             Err(CycleError::Forbidden)
         ));
         assert!(matches!(
-            service.get(&denied, uuid::Uuid::new_v4()).await,
+            service.get(&denied, uuid::Uuid::now_v7()).await,
             Err(CycleError::Forbidden)
         ));
         assert!(fake.0.lock().unwrap().is_empty());
@@ -1703,7 +1703,7 @@ mod tests {
         );
         assert!(service.list(&allowed, 20, 0).await.unwrap().is_empty());
         assert!(matches!(
-            service.get(&allowed, uuid::Uuid::new_v4()).await,
+            service.get(&allowed, uuid::Uuid::now_v7()).await,
             Err(CycleError::NotFound)
         ));
         assert_eq!(*fake.0.lock().unwrap(), vec![id, id, id]);

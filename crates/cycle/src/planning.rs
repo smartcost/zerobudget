@@ -74,7 +74,8 @@ impl PlanningService {
     ) -> Result<Reallocation, CycleError> {
         user.require(Permission::WriteBudget)
             .map_err(|_| CycleError::Forbidden)?;
-        if record.id.is_nil()
+        if record.id.get_version_num() != 7
+            || record.id.get_variant() != uuid::Variant::RFC4122
             || record.from_envelope_id == record.to_envelope_id
             || record.amount_cents <= 0
         {
@@ -106,7 +107,8 @@ impl PlanningService {
     ) -> Result<BudgetCycle, CycleError> {
         user.require(Permission::WriteBudget)
             .map_err(|_| CycleError::Forbidden)?;
-        if input.request_id.is_nil()
+        if input.request_id.get_version_num() != 7
+            || input.request_id.get_variant() != uuid::Variant::RFC4122
             || input.request_id == source
             || input.period_end <= input.period_start
             || input.new_income_cents < 0

@@ -51,7 +51,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
     let envelope = envelope(&s, i64::MAX).await;
     assert_eq!(
         sqlstate(
-            raw_expense(&s, envelope, Uuid::new_v4(), 1, "2026-10-01")
+            raw_expense(&s, envelope, Uuid::now_v7(), 1, "2026-10-01")
                 .await
                 .unwrap_err()
         ),
@@ -64,7 +64,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
         .unwrap();
     assert_eq!(
         sqlstate(
-            raw_expense(&s, envelope, Uuid::new_v4(), 1, "2026-11-01")
+            raw_expense(&s, envelope, Uuid::now_v7(), 1, "2026-11-01")
                 .await
                 .unwrap_err()
         ),
@@ -72,24 +72,24 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
     );
     assert_eq!(
         sqlstate(
-            raw_expense(&s, envelope, Uuid::new_v4(), 0, "2026-10-01")
+            raw_expense(&s, envelope, Uuid::now_v7(), 0, "2026-10-01")
                 .await
                 .unwrap_err()
         ),
         "23514"
     );
     let mut batch_tx = tx(&s).await;
-    let batch=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on,account_id) VALUES(gen_random_uuid(),$1,$2,$3,'Batch A',$4,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$2 AND name='Fixture')),(gen_random_uuid(),$1,$2,$3,'Batch B',1,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$2 AND name='Fixture'))")
+    let batch=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on,account_id) VALUES(uuidv7(),$1,$2,$3,'Batch A',$4,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$2 AND name='Fixture')),(uuidv7(),$1,$2,$3,'Batch B',1,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$2 AND name='Fixture'))")
         .bind(s.cycle).bind(s.user).bind(envelope).bind(i64::MAX).execute(&mut *batch_tx).await;
     assert_eq!(sqlstate(batch.unwrap_err()), "ZB003");
     batch_tx.rollback().await.unwrap();
-    let first = Uuid::new_v4();
+    let first = Uuid::now_v7();
     raw_expense(&s, envelope, first, i64::MAX, "2026-10-01")
         .await
         .unwrap();
     assert_eq!(
         sqlstate(
-            raw_expense(&s, envelope, Uuid::new_v4(), 1, "2026-10-01")
+            raw_expense(&s, envelope, Uuid::now_v7(), 1, "2026-10-01")
                 .await
                 .unwrap_err()
         ),
@@ -100,7 +100,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
         .reverse(s.user, s.cycle, envelope, first)
         .await
         .unwrap();
-    raw_expense(&s, envelope, Uuid::new_v4(), i64::MAX, "2026-10-31")
+    raw_expense(&s, envelope, Uuid::now_v7(), i64::MAX, "2026-10-31")
         .await
         .unwrap();
     let data = json(s.read(&s.path()).await).await;
@@ -118,7 +118,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
         "DELETE FROM budgeting.expenses",
         "UPDATE budgeting.expense_reversals SET expense_id=expense_id",
         "DELETE FROM budgeting.expense_reversals",
-        "INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents,created_at) VALUES(gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),gen_random_uuid(),'x',CURRENT_DATE,1,now())",
+        "INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents,created_at) VALUES(uuidv7(),uuidv7(),uuidv7(),uuidv7(),'x',CURRENT_DATE,1,now())",
     ] { assert_eq!(sqlstate(sqlx::query(statement).execute(s.runtime.pool()).await.unwrap_err()),"42501"); }
     // Use the authenticated context too, so this proves the trigger even when
     // the test database owner has CREATEDB without SUPERUSER/BYPASSRLS.
@@ -154,7 +154,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
         .await
         .unwrap();
     let stale=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,envelope_id,owner_id,description,occurred_on,amount_cents,account_id) VALUES($1,$2,$3,$4,'Stale',DATE '2026-10-01',1,(SELECT id FROM banking.accounts WHERE owner_id=$4 AND name='Fixture'))")
-        .bind(Uuid::new_v4()).bind(s.cycle).bind(envelope).bind(s.user).execute(&mut *stale_tx).await;
+        .bind(Uuid::now_v7()).bind(s.cycle).bind(envelope).bind(s.user).execute(&mut *stale_tx).await;
     assert_eq!(sqlstate(stale.unwrap_err()), "25000");
     stale_tx.rollback().await.unwrap();
     let count: i64 = sqlx::query_scalar("SELECT count(*) FROM budgeting.expenses")
@@ -194,7 +194,7 @@ async fn expenses_sql_guards_immutable_ledger_rls_dates_and_exact_i64_totals() {
         .unwrap();
     assert_eq!(
         sqlstate(
-            raw_expense(&s, envelope, Uuid::new_v4(), 1, "2026-10-01")
+            raw_expense(&s, envelope, Uuid::now_v7(), 1, "2026-10-01")
                 .await
                 .unwrap_err()
         ),
@@ -218,7 +218,7 @@ async fn expenses_raw_sql_and_closure_serialize_with_application_writes() {
         .transition(s.user, s.cycle, CycleTransition::Activate)
         .await
         .unwrap();
-    let first = Uuid::new_v4();
+    let first = Uuid::now_v7();
     let user = s.user;
     let cycle = s.cycle;
     let mut first_tx = tx(&s).await;
@@ -233,7 +233,7 @@ async fn expenses_raw_sql_and_closure_serialize_with_application_writes() {
             .await
             .unwrap();
         let result=sqlx::query("INSERT INTO budgeting.expenses(id,cycle_id,owner_id,envelope_id,description,amount_cents,occurred_on,account_id) VALUES($1,$2,$3,$4,'Second',100,DATE '2026-10-01',(SELECT id FROM banking.accounts WHERE owner_id=$3 AND name='Fixture'))")
-            .bind(Uuid::new_v4()).bind(cycle).bind(user).bind(envelope).execute(&mut *tx).await;
+            .bind(Uuid::now_v7()).bind(cycle).bind(user).bind(envelope).execute(&mut *tx).await;
         tx.rollback().await.unwrap();
         result
     });

@@ -1,3 +1,4 @@
+import { uuidv7 } from "../fixtures/uuid.js";
 import { test, expect, type Actor } from '../fixtures/auth.js';
 import { body, rejection, type Cycle, type Envelope, type Expense } from '../fixtures/api-client.js';
 import { cycle, envelope, account } from '../fixtures/test-data.js';
@@ -13,12 +14,12 @@ type Invoice = {
     opening_debt_cents: number;
     paid_cents: number;
 };
-async function card(a: Actor, limit = 1000) { return body<Card>(await a.api.send('POST', '/api/cards', { name: crypto.randomUUID(), opened_on: '0001-01-01', credit_limit_cents: limit }), 201, 'CreditCard'); }
+async function card(a: Actor, limit = 1000) { return body<Card>(await a.api.send('POST', '/api/cards', { name: uuidv7(), opened_on: '0001-01-01', credit_limit_cents: limit }), 201, 'CreditCard'); }
 async function invoice(a: Actor, c: Card, start: string, end: string) { return body<Invoice>(await a.api.send('POST', `/api/cards/${c.id}/invoices`, { period_start: start, period_end: end, due_on: end }), 201, 'CardInvoice'); }
 async function balance(a: Actor, id: string) { return (await body<{
     balance_cents: number;
 }>(await a.api.send('GET', `/api/accounts/${id}`), 200, 'Account')).balance_cents; }
-const key = () => crypto.randomUUID();
+const key = () => uuidv7();
 test('realocação preserva gasto, serializa concorrência e replay após fechamento', async ({ alice }) => {
     const c = await cycle(alice, 100), a = await account(alice, 100), e = await envelope(alice, c.id, 'Source', 70), f = await envelope(alice, c.id, 'Target', 30);
     await body(await alice.api.send('POST', `/api/cycles/${c.id}/activate`), 200, 'Cycle');

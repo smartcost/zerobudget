@@ -132,7 +132,7 @@ impl CycleService {
             .insert(
                 user.id(),
                 BudgetCycle {
-                    id: Uuid::new_v4(),
+                    id: Uuid::now_v7(),
                     period_start: start,
                     period_end: end,
                     income_cents: cycle.income_cents(),
@@ -222,8 +222,8 @@ mod lifecycle_tests {
     async fn transitions_require_write_and_forward_only_the_authenticated_owner() {
         let repository = Arc::new(Repository::default());
         let service = CycleService::new(repository.clone());
-        let owner = Uuid::new_v4();
-        let id = Uuid::new_v4();
+        let owner = Uuid::now_v7();
+        let id = Uuid::now_v7();
         for permissions in [
             Default::default(),
             [Permission::ReadBudget].into_iter().collect(),

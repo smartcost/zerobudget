@@ -15,7 +15,7 @@ impl TestDatabase {
         let runtime_url = std::env::var("AUTH_TEST_RUNTIME_DATABASE_URL")
             .expect("set AUTH_TEST_RUNTIME_DATABASE_URL to the test runtime role URL");
         let admin = PgPool::connect(&owner_url).await.unwrap();
-        let name = format!("zb_auth_test_{}", uuid::Uuid::new_v4().simple());
+        let name = format!("zb_auth_test_{}", uuid::Uuid::now_v7().simple());
         sqlx::query(&format!("CREATE DATABASE \"{name}\""))
             .execute(&admin)
             .await

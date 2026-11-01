@@ -127,7 +127,7 @@ impl IdentityRepository for MemoryIdentityRepository {
             .entry((identity.issuer().into(), identity.subject().into()))
             .or_insert_with(|| MemoryUser {
                 user: LocalUser {
-                    id: Uuid::new_v4(),
+                    id: Uuid::now_v7(),
                     permissions: BTreeSet::new(),
                 },
                 enabled: true,

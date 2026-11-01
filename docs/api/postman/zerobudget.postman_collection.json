@@ -493,7 +493,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('operation_Registrar_despesa')) pm.environment.set('operation_Registrar_despesa', pm.variables.replaceIn('{{$guid}}'));"
+                  "if (!pm.environment.get('operation_Registrar_despesa')) pm.environment.set('operation_Registrar_despesa', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());"
                 ]
               }
             }
@@ -698,7 +698,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('operation_Registrar_recebimento')) pm.environment.set('operation_Registrar_recebimento', pm.variables.replaceIn('{{$guid}}'));"
+                  "if (!pm.environment.get('operation_Registrar_recebimento')) pm.environment.set('operation_Registrar_recebimento', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());"
                 ]
               }
             }
@@ -756,7 +756,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('operation_Transferir_entre_contas')) pm.environment.set('operation_Transferir_entre_contas', pm.variables.replaceIn('{{$guid}}'));"
+                  "if (!pm.environment.get('operation_Transferir_entre_contas')) pm.environment.set('operation_Transferir_entre_contas', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());"
                 ]
               }
             }
@@ -1018,7 +1018,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('operation_Registrar_compra_no_cart_o')) pm.environment.set('operation_Registrar_compra_no_cart_o', pm.variables.replaceIn('{{$guid}}'));"
+                  "if (!pm.environment.get('operation_Registrar_compra_no_cart_o')) pm.environment.set('operation_Registrar_compra_no_cart_o', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());"
                 ]
               }
             }
@@ -1117,7 +1117,7 @@
                   "pm.variables.set('credit_name_json', JSON.stringify(pm.environment.get('credit_name') || 'Cartão'));",
                   "pm.variables.set('expense_description_json', JSON.stringify(pm.environment.get('expense_description') || 'Compra'));",
                   "pm.variables.set('banking_description_json', JSON.stringify(pm.environment.get('banking_description') || 'Pagamento de fatura')); ",
-                  "if (!pm.environment.get('card_payment_request_id')) pm.environment.set('card_payment_request_id', pm.variables.replaceIn('{{$guid}}')); "
+                  "if (!pm.environment.get('card_payment_request_id')) pm.environment.set('card_payment_request_id', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })()); "
                 ]
               }
             },
@@ -1182,7 +1182,7 @@
                   "}",
                   "pm.environment.unset('csrf_token');",
                   "pm.environment.unset('test_initial_allocated');",
-                  "pm.environment.set('test_run_id', pm.variables.replaceIn('{{$guid}}'));"
+                  "pm.environment.set('test_run_id', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());"
                 ]
               }
             },
@@ -2162,7 +2162,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('mvp_request_0')) pm.environment.set('mvp_request_0', pm.variables.replaceIn('{{$guid}}'));",
+                  "if (!pm.environment.get('mvp_request_0')) pm.environment.set('mvp_request_0', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());",
                   "// Limpe mvp_request_0 para iniciar uma nova operação."
                 ]
               }
@@ -2210,7 +2210,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('mvp_request_2')) pm.environment.set('mvp_request_2', pm.variables.replaceIn('{{$guid}}'));",
+                  "if (!pm.environment.get('mvp_request_2')) pm.environment.set('mvp_request_2', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());",
                   "// Limpe mvp_request_2 para iniciar uma nova operação."
                 ]
               }
@@ -2249,7 +2249,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('mvp_request_3')) pm.environment.set('mvp_request_3', pm.variables.replaceIn('{{$guid}}'));",
+                  "if (!pm.environment.get('mvp_request_3')) pm.environment.set('mvp_request_3', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());",
                   "// Limpe mvp_request_3 para iniciar uma nova operação."
                 ]
               }
@@ -2288,7 +2288,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('mvp_request_4')) pm.environment.set('mvp_request_4', pm.variables.replaceIn('{{$guid}}'));",
+                  "if (!pm.environment.get('mvp_request_4')) pm.environment.set('mvp_request_4', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());",
                   "// Limpe mvp_request_4 para iniciar uma nova operação."
                 ]
               }
@@ -2327,7 +2327,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "if (!pm.environment.get('mvp_request_5')) pm.environment.set('mvp_request_5', pm.variables.replaceIn('{{$guid}}'));",
+                  "if (!pm.environment.get('mvp_request_5')) pm.environment.set('mvp_request_5', (() => { const r = pm.variables.replaceIn('{{$guid}}').replace(/-/g, ''); const t = Date.now().toString(16).padStart(12, '0'); return t.slice(0,8)+'-'+t.slice(8)+'-7'+r.slice(13,16)+'-'+r.slice(16,20)+'-'+r.slice(20); })());",
                   "// Limpe mvp_request_5 para iniciar uma nova operação."
                 ]
               }

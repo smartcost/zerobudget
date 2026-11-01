@@ -1,3 +1,4 @@
+import { uuidv7 } from "../fixtures/uuid.js";
 import { test, expect, type Me } from '../fixtures/auth.js';
 import { ApiClient, body, rejection, type Expense } from '../fixtures/api-client.js';
 import { register, signIn, password } from '../fixtures/registration.js';
@@ -23,7 +24,7 @@ type Status = {
 };
 async function current(api: ApiClient) { return body<Status>(await api.send('GET', '/api/onboarding'), 200, 'Onboarding'); }
 test('cadastro até a primeira despesa sem concessão administrativa de permissões', async ({ browser }) => {
-    const r = await register(browser, `onboarding-${crypto.randomUUID()}@e2e.invalid`);
+    const r = await register(browser, `onboarding-${uuidv7()}@e2e.invalid`);
     const api = new ApiClient(r.context.request, r.me.csrf_token);
     const actor = { api };
     try {
@@ -34,7 +35,7 @@ test('cadastro até a primeira despesa sem concessão administrativa de permiss�
         expect(before.setup).toBeNull();
         await rejection(await api.send('GET', '/api/cycles'), 403);
         await rejection(await api.send('POST', '/api/onboarding', {}, { csrf: false }), 403);
-        await rejection(await api.send('POST', '/api/onboarding', { owner_id: crypto.randomUUID() }), 422);
+        await rejection(await api.send('POST', '/api/onboarding', { owner_id: uuidv7() }), 422);
         const completed = await body<Status>(await api.send('POST', '/api/onboarding', {}), 200, 'Onboarding');
         expect(completed.status).toBe('completed');
         expect(completed.permissions).toEqual(['budget:read', 'budget:write']);
@@ -52,7 +53,7 @@ test('cadastro até a primeira despesa sem concessão administrativa de permiss�
         expect((await current(api)).next_step).toBe('activate_cycle');
         await body(await api.send('POST', `/api/cycles/${c.id}/activate`), 200, 'Cycle');
         expect((await current(api)).next_step).toBe('record_expense');
-        const x = await body<Expense>(await api.send('POST', `/api/cycles/${c.id}/envelopes/${e.id}/expenses`, { request_id: crypto.randomUUID(), account_id: a.id, description: 'Primeira despesa', occurred_on: c.period_start, amount_cents: 2500 }), 201, 'Expense');
+        const x = await body<Expense>(await api.send('POST', `/api/cycles/${c.id}/envelopes/${e.id}/expenses`, { request_id: uuidv7(), account_id: a.id, description: 'Primeira despesa', occurred_on: c.period_start, amount_cents: 2500 }), 201, 'Expense');
         status = await current(api);
         expect(status.next_step).toBe('ready');
         expect(status.setup?.has_expenses).toBe(true);
@@ -69,7 +70,7 @@ test('cadastro até a primeira despesa sem concessão administrativa de permiss�
     }
 });
 test('revogação e bloqueio sobrevivem ao onboarding repetido e a novos logins', async ({ browser }) => {
-    const email = `revoked-${crypto.randomUUID()}@e2e.invalid`;
+    const email = `revoked-${uuidv7()}@e2e.invalid`;
     const r = await register(browser, email);
     const api = new ApiClient(r.context.request, r.me.csrf_token);
     let other: Awaited<ReturnType<typeof signIn>> | undefined;
@@ -103,7 +104,7 @@ test('revogação e bloqueio sobrevivem ao onboarding repetido e a novos logins'
     }
 });
 test('decisão administrativa anterior impede auto-habilitação e progresso não vaza entre usuários', async ({ browser, alice }) => {
-    const r = await register(browser, `managed-${crypto.randomUUID()}@e2e.invalid`);
+    const r = await register(browser, `managed-${uuidv7()}@e2e.invalid`);
     const api = new ApiClient(r.context.request, r.me.csrf_token);
     try {
         await account(alice, 100);
@@ -125,7 +126,7 @@ test('decisão administrativa anterior impede auto-habilitação e progresso nã
 });
 test('consulta exige sessão e ciclo de renda zero pode ser ativado sem envelopes', async ({ browser, request }) => {
     await rejection(await request.get('/api/onboarding'), 401);
-    const r = await register(browser, `zero-${crypto.randomUUID()}@e2e.invalid`);
+    const r = await register(browser, `zero-${uuidv7()}@e2e.invalid`);
     const api = new ApiClient(r.context.request, r.me.csrf_token);
     const actor = { api };
     try {

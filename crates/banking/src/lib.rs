@@ -133,7 +133,7 @@ impl BankingService {
         )
         .map_err(|_| BankingError::Invalid)?;
         self.repository
-            .create(user.id(), Uuid::new_v4(), account)
+            .create(user.id(), Uuid::now_v7(), account)
             .await
     }
     pub async fn list(
@@ -163,7 +163,7 @@ impl BankingService {
         account: Uuid,
         input: MovementInput,
     ) -> Result<BankMovement, BankingError> {
-        self.post_with_id(user, Uuid::new_v4(), None, account, input)
+        self.post_with_id(user, Uuid::now_v7(), None, account, input)
             .await
     }
     pub async fn transfer(
@@ -177,7 +177,7 @@ impl BankingService {
         if from == to {
             return Err(BankingError::Invalid);
         }
-        self.post_with_id(user, Uuid::new_v4(), Some(from), to, input)
+        self.post_with_id(user, Uuid::now_v7(), Some(from), to, input)
             .await
     }
     pub async fn post_with_id(
@@ -189,7 +189,10 @@ impl BankingService {
         input: MovementInput,
     ) -> Result<BankMovement, BankingError> {
         require(user, Permission::WriteBudget)?;
-        if request_id.is_nil() || from == Some(to) {
+        if request_id.get_version_num() != 7
+            || request_id.get_variant() != uuid::Variant::RFC4122
+            || from == Some(to)
+        {
             return Err(BankingError::Invalid);
         }
         let movement = CashMovement::new(
@@ -288,9 +291,9 @@ mod tests {
     async fn authorization_validation_and_owner_precede_persistence() {
         let repo = Arc::new(Repository::default());
         let service = BankingService::new(repo.clone());
-        let owner = Uuid::new_v4();
-        let a = Uuid::new_v4();
-        let b = Uuid::new_v4();
+        let owner = Uuid::now_v7();
+        let a = Uuid::now_v7();
+        let b = Uuid::now_v7();
         let date = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
         let input = MovementInput {
             description: "Receipt".into(),

@@ -1,3 +1,4 @@
+import { uuidv7 } from "./uuid.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { state } from "./environment.js";
@@ -53,7 +54,7 @@ export async function account(
 ) {
   return body<{ id: string; balance_cents: number }>(
     await actor.api.send("POST", "/api/accounts", {
-      name: `Test-${crypto.randomUUID()}`,
+      name: `Test-${uuidv7()}`,
       kind,
       opened_on: opened,
       opening_balance_cents: opening,

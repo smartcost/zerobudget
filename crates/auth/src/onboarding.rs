@@ -222,7 +222,7 @@ mod tests {
     async fn verified_current_identity_precedes_storage_and_only_authenticated_id_is_forwarded() {
         let repository = Arc::new(Repository::default());
         let service = OnboardingService::new(repository.clone());
-        let user = LocalUser::from_persisted(Uuid::new_v4(), BTreeSet::new());
+        let user = LocalUser::from_persisted(Uuid::now_v7(), BTreeSet::new());
         let mut identity = Identity::for_test("https://id.example/realms/test", "user");
         assert_eq!(
             service.complete(&identity, &user).await.unwrap_err(),
@@ -261,7 +261,7 @@ mod tests {
         s.setup.as_mut().unwrap().has_accounts = true;
         assert_eq!(s.next_step(), NextStep::CreateCycle);
         s.setup.as_mut().unwrap().selected_cycle = Some(SetupCycle {
-            id: Uuid::new_v4(),
+            id: Uuid::now_v7(),
             status: SetupCycleState::Planned,
             has_envelopes: false,
             has_unallocated_income: true,

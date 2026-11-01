@@ -9,7 +9,7 @@ obz-domain = { path = "../domain" }
 obz-cycle = { path = "../cycle" }
 obz-auth = { path = "../auth" }
 async-trait = "0.1"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v7"] }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls-ring", "postgres", "uuid", "chrono", "migrate", "macros"] }
 tokio = { version = "1", features = ["time"] }
 url = "2"

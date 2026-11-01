@@ -178,7 +178,7 @@ async fn onboarding_preserves_prior_operator_decisions_and_serializes_with_revoc
             .await
             .is_err()
     );
-    sqlx::query("INSERT INTO auth.audit_events(id,user_id,action,permission) VALUES(gen_random_uuid(),$1,'grant','budget:write'),(gen_random_uuid(),$1,'revoke','budget:write')").bind(s.user).execute(&mut *tx).await.unwrap();
+    sqlx::query("INSERT INTO auth.audit_events(id,user_id,action,permission) VALUES(uuidv7(),$1,'grant','budget:write'),(uuidv7(),$1,'revoke','budget:write')").bind(s.user).execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
     assert_eq!(request.await.status(), StatusCode::CONFLICT);
     let status = json(s.get().await).await;
@@ -192,8 +192,8 @@ async fn onboarding_preserves_prior_operator_decisions_and_serializes_with_revoc
 async fn onboarding_function_scopes_privileges_and_rolls_back_grants_if_audit_fails() {
     let s = Setup::new().await;
     for statement in [
-        "INSERT INTO auth.permissions VALUES(gen_random_uuid(),'budget:write')",
-        "INSERT INTO auth.budget_onboardings(user_id) VALUES(gen_random_uuid())",
+        "INSERT INTO auth.permissions VALUES(uuidv7(),'budget:write')",
+        "INSERT INTO auth.budget_onboardings(user_id) VALUES(uuidv7())",
         "UPDATE auth.budget_onboardings SET completed_at=now()",
         "DELETE FROM auth.budget_onboardings",
         "UPDATE auth.users SET enabled=true",
@@ -282,4 +282,99 @@ async fn administrative_revocation_waits_for_enrollment_and_wins_after_commit() 
     assert_eq!(status["next_step"], "contact_operator");
     assert_eq!(s.audit().await.len(), 4);
     s.db.destroy().await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL databases"]
+async fn uuid_v7_generation_defaults_and_insert_policy() {
+    let s = Setup::new().await;
+    assert_eq!(s.user.get_version_num(), 7);
+    assert_eq!(s.post().await.status(), StatusCode::OK);
+    let versions: Vec<i16> = sqlx::query_scalar(
+        "SELECT uuid_extract_version(id) FROM auth.audit_events WHERE user_id=$1",
+    )
+    .bind(s.user)
+    .fetch_all(s.owner.pool())
+    .await
+    .unwrap();
+    assert_eq!(versions, vec![7, 7, 7]);
+    let id: Uuid = sqlx::query_scalar(
+        "INSERT INTO auth.audit_events(user_id,action) VALUES($1,'enable') RETURNING id",
+    )
+    .bind(s.user)
+    .fetch_one(s.owner.pool())
+    .await
+    .unwrap();
+    assert_eq!(id.get_version_num(), 7);
+    for invalid in [
+        "550e8400-e29b-41d4-a716-446655440000",
+        "019a0000-0000-7000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000000",
+    ] {
+        let error =
+            sqlx::query("INSERT INTO auth.audit_events(id,user_id,action) VALUES($1,$2,'enable')")
+                .bind(invalid.parse::<Uuid>().unwrap())
+                .bind(s.user)
+                .execute(s.owner.pool())
+                .await
+                .unwrap_err();
+        assert_eq!(code(error), "23514");
+    }
+    let count: i64 = sqlx::query_scalar("SELECT count(*) FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attname='id' JOIN pg_attrdef d ON d.adrelid=c.oid AND d.adnum=a.attnum WHERE n.nspname IN ('auth','banking','budgeting') AND t.tgname='require_uuid_v7' AND pg_get_expr(d.adbin,d.adrelid)='uuidv7()'")
+        .fetch_one(s.owner.pool()).await.unwrap();
+    assert_eq!(count, 14);
+    s.db.destroy().await;
+}
+
+#[tokio::test]
+#[ignore = "requires disposable PostgreSQL databases"]
+async fn uuid_v7_migration_preserves_legacy_identity_and_references() {
+    let db = TestDatabase::create().await;
+    let owner = Database::connect(DatabaseConfig::new(db.owner_url.clone(), true))
+        .await
+        .unwrap();
+    for migration in obz_infrastructure::MIGRATOR
+        .iter()
+        .filter(|m| m.version < 11)
+    {
+        sqlx::raw_sql(&migration.sql)
+            .execute(owner.pool())
+            .await
+            .unwrap();
+    }
+    let legacy: Uuid = "550e8400-e29b-41d4-a716-446655440000".parse().unwrap();
+    sqlx::query("INSERT INTO auth.users(id,issuer,subject) VALUES($1,'https://legacy.invalid','opaque-subject')").bind(legacy).execute(owner.pool()).await.unwrap();
+    sqlx::query(
+        "INSERT INTO auth.audit_events(id,user_id,action) VALUES(gen_random_uuid(),$1,'enable')",
+    )
+    .bind(legacy)
+    .execute(owner.pool())
+    .await
+    .unwrap();
+    let migration = obz_infrastructure::MIGRATOR
+        .iter()
+        .find(|m| m.version == 11)
+        .unwrap();
+    sqlx::raw_sql(&migration.sql)
+        .execute(owner.pool())
+        .await
+        .unwrap();
+    let user: Uuid = sqlx::query_scalar("UPDATE auth.users SET last_login_at=now() WHERE issuer='https://legacy.invalid' AND subject='opaque-subject' RETURNING id").fetch_one(owner.pool()).await.unwrap();
+    assert_eq!(user, legacy);
+    let references: Vec<Uuid> =
+        sqlx::query_scalar("SELECT user_id FROM auth.audit_events WHERE user_id=$1")
+            .bind(legacy)
+            .fetch_all(owner.pool())
+            .await
+            .unwrap();
+    assert_eq!(references, vec![legacy]);
+    let new_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO auth.audit_events(user_id,action) VALUES($1,'disable') RETURNING id",
+    )
+    .bind(legacy)
+    .fetch_one(owner.pool())
+    .await
+    .unwrap();
+    assert_eq!(new_id.get_version_num(), 7);
+    db.destroy().await;
 }

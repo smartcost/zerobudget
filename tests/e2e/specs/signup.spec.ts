@@ -1,10 +1,11 @@
+import { uuidv7 } from "../fixtures/uuid.js";
 import { test, expect, type Me } from '../fixtures/auth.js';
 import { body, rejection } from '../fixtures/api-client.js';
 import { state } from '../fixtures/environment.js';
 import { password, emailLink, register, signIn } from '../fixtures/registration.js';
 import type { BrowserContext } from '@playwright/test';
 test('signup exige confirmação de e-mail e provisiona usuário sem permissões implícitas', async ({ browser }) => {
-    const r = await register(browser, `signup-${crypto.randomUUID()}@e2e.invalid`);
+    const r = await register(browser, `signup-${uuidv7()}@e2e.invalid`);
     try {
         expect(r.me.permissions).toEqual([]);
         await rejection(await r.context.request.get('/api/cycles'), 403);
@@ -15,7 +16,7 @@ test('signup exige confirmação de e-mail e provisiona usuário sem permissões
     }
 });
 test('recuperação por e-mail revoga sessões anteriores mesmo sem marcar logout de dispositivos', async ({ browser }) => {
-    const recipient = `recovery-${crypto.randomUUID()}@e2e.invalid`;
+    const recipient = `recovery-${uuidv7()}@e2e.invalid`;
     const r = await register(browser, recipient);
     const contexts: BrowserContext[] = [r.context];
     try {
@@ -65,7 +66,7 @@ test('recuperação não revela existência da conta', async ({ browser }) => {
     try {
         const page = await context.newPage();
         await page.goto(state().origin + '/api/auth/recover');
-        await page.locator('input[name="username"]').fill(`missing-${crypto.randomUUID()}@e2e.invalid`);
+        await page.locator('input[name="username"]').fill(`missing-${uuidv7()}@e2e.invalid`);
         await page.locator('input[type="submit"],button[type="submit"]').first().click();
         await expect(page.getByText(/receive an email shortly/i)).toBeVisible();
         await rejection(await context.request.get('/api/auth/me'), 401);

@@ -27,7 +27,7 @@ async fn envelopes(s: &Setup) -> (Uuid, Uuid) {
 }
 async fn raw_move(s: &Setup, a: Uuid, b: Uuid, amount: i64) -> Result<(), sqlx::Error> {
     let mut t = tx(s).await;
-    let result=sqlx::query("INSERT INTO budgeting.reallocations(id,owner_id,cycle_id,from_envelope_id,to_envelope_id,amount_cents) VALUES(gen_random_uuid(),$1,$2,$3,$4,$5)").bind(s.user).bind(s.cycle).bind(a).bind(b).bind(amount).execute(&mut *t).await;
+    let result=sqlx::query("INSERT INTO budgeting.reallocations(id,owner_id,cycle_id,from_envelope_id,to_envelope_id,amount_cents) VALUES(uuidv7(),$1,$2,$3,$4,$5)").bind(s.user).bind(s.cycle).bind(a).bind(b).bind(amount).execute(&mut *t).await;
     match result {
         Ok(_) => t.commit().await,
         Err(e) => {
@@ -117,7 +117,7 @@ async fn raw_corrections_are_linked_atomic_and_owner_isolated() {
         .await
         .unwrap();
     let mut t = tx(&s).await;
-    let id = Uuid::new_v4();
+    let id = Uuid::now_v7();
     sqlx::query("INSERT INTO banking.adjustments(id,owner_id,movement_id,description,occurred_on) VALUES($1,$2,$3,'Correction',DATE '2026-10-02')").bind(id).bind(s.user).bind(m.id).execute(&mut *t).await.unwrap();
     t.commit().await.unwrap();
     assert_eq!(
@@ -130,7 +130,7 @@ async fn raw_corrections_are_linked_atomic_and_owner_isolated() {
         100
     );
     let mut t = tx(&s).await;
-    assert_eq!(sqlstate(sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,description,occurred_on,amount_cents,adjustment_id) VALUES(gen_random_uuid(),$1,'correction',$2,'Forged',DATE '2026-10-02',1,$3)").bind(s.user).bind(s.account).bind(id).execute(&mut *t).await.unwrap_err()),"ZB004");
+    assert_eq!(sqlstate(sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,description,occurred_on,amount_cents,adjustment_id) VALUES(uuidv7(),$1,'correction',$2,'Forged',DATE '2026-10-02',1,$3)").bind(s.user).bind(s.account).bind(id).execute(&mut *t).await.unwrap_err()),"ZB004");
     t.rollback().await.unwrap();
     let mut t = tx(&s).await;
     assert_eq!(
@@ -146,7 +146,7 @@ async fn raw_corrections_are_linked_atomic_and_owner_isolated() {
     t.rollback().await.unwrap();
     let mut t = s.runtime.pool().begin().await.unwrap();
     sqlx::query("SELECT set_config('zerobudget.user_id',$1,true)")
-        .bind(Uuid::new_v4().to_string())
+        .bind(Uuid::now_v7().to_string())
         .execute(&mut *t)
         .await
         .unwrap();

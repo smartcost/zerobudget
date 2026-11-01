@@ -3509,7 +3509,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -3711,7 +3712,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -3753,7 +3755,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -4167,7 +4170,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           }
         },
         "required": [
@@ -4288,7 +4292,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           },
           "from_envelope_id": {
             "type": "string",
@@ -4356,7 +4361,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           },
           "period_start": {
             "type": "string",
@@ -4491,7 +4497,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           },
           "description": {
             "type": "string",
@@ -4545,7 +4552,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           },
           "invoice_id": {
             "type": "string",
@@ -4583,7 +4591,8 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409. UUIDv7 obrigatório; gerar uma vez e preservar nos retries.",
+            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
           },
           "invoice_id": {
             "type": "string",
