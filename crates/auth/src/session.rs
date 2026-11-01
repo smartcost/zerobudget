@@ -9,7 +9,7 @@ use std::{
 use subtle::ConstantTimeEq;
 use tokio::sync::Mutex;
 
-pub(crate) const LOGIN_TTL: u64 = 300;
+pub(crate) const LOGIN_TTL: u64 = 900;
 pub(crate) const SESSION_TTL: u64 = 1800;
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -83,6 +83,9 @@ pub trait SessionStore: Send + Sync {
     async fn get(&self, id: &str) -> Result<Session, SessionError>;
     async fn logout(&self, id: &str, csrf: &str) -> Result<(), SessionError>;
     async fn cleanup(&self) -> Result<(), SessionError>;
+    async fn probe(&self) -> Result<(), SessionError> {
+        Err(SessionError::Unavailable)
+    }
 }
 
 struct MemoryState {
@@ -121,6 +124,9 @@ impl MemorySessionStore {
 }
 #[async_trait]
 impl SessionStore for MemorySessionStore {
+    async fn probe(&self) -> Result<(), SessionError> {
+        Ok(())
+    }
     async fn start_login(
         &self,
         attempt: LoginAttempt,

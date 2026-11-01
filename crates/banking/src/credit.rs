@@ -14,6 +14,7 @@ pub struct Card {
     pub id: Uuid,
     pub card: CreditCard,
     pub outstanding: Money,
+    pub credit_balance: Money,
 }
 #[derive(Debug, Clone)]
 pub struct Invoice {
@@ -23,6 +24,8 @@ pub struct Invoice {
     pub closed: bool,
     pub purchases: Money,
     pub paid: Money,
+    pub opening_debt: Money,
+    pub credits: Money,
 }
 #[derive(Debug, Clone)]
 pub struct CardPayment {
@@ -30,6 +33,7 @@ pub struct CardPayment {
     pub invoice_id: Uuid,
     pub account_id: Uuid,
     pub movement: CashMovement,
+    pub reversed: bool,
 }
 #[derive(Debug, Clone)]
 pub struct InvoicePurchase {
@@ -228,6 +232,7 @@ impl CreditService {
                     invoice_id: id,
                     account_id: input.account_id,
                     movement,
+                    reversed: false,
                 },
             )
             .await
@@ -262,6 +267,13 @@ impl CreditService {
     }
 }
 
+pub fn invoice_position(i: &Invoice) -> (i64, i64) {
+    let p =
+        obz_domain::credit::CreditPosition::invoice(i.purchases, i.opening_debt, i.credits, i.paid)
+            .expect("validated invoice position");
+    (p.outstanding.to_cents(), p.credit.to_cents())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -275,6 +287,7 @@ mod tests {
                 id,
                 card: c,
                 outstanding: Money::zero(),
+                credit_balance: Money::zero(),
             })
         }
         async fn cards(
@@ -302,6 +315,8 @@ mod tests {
                 closed: false,
                 purchases: Money::zero(),
                 paid: Money::zero(),
+                opening_debt: Money::zero(),
+                credits: Money::zero(),
             })
         }
         async fn invoices(

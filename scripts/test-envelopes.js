@@ -1,5 +1,5 @@
 /*
- * Execute no console de http://localhost:3000/auth/session após login pelo Dex.
+ * Execute no console de http://localhost:3000/auth/session após login pelo Keycloak.
  * Requer budget:read e budget:write e um ciclo planejado com pelo menos 2 centavos
  * disponíveis. Use um ciclo de teste sem outras edições durante a execução.
  * Cria e remove somente seus próprios envelopes de teste. Não cria ciclos.

@@ -105,7 +105,7 @@ impl PostgresExpenseRepository {
         cycle: Uuid,
         envelope: Uuid,
     ) -> Result<(CycleStatus, BudgetPeriod, Money), StorageError> {
-        let row=sqlx::query("SELECT c.status,(c.period_start-DATE '0001-01-01'+1) AS start_day,(c.period_end-DATE '0001-01-01'+1) AS end_day,e.allocated_cents FROM budgeting.cycles c JOIN budgeting.envelopes e ON e.cycle_id=c.id AND e.owner_id=c.owner_id WHERE c.id=$1 AND c.owner_id=$2 AND e.id=$3")
+        let row=sqlx::query("SELECT c.status,(c.period_start-DATE '0001-01-01'+1) AS start_day,(c.period_end-DATE '0001-01-01'+1) AS end_day,e.allocated_cents FROM budgeting.cycles c JOIN budgeting.envelope_balances e ON e.cycle_id=c.id AND e.owner_id=c.owner_id WHERE c.id=$1 AND c.owner_id=$2 AND e.id=$3")
             .bind(cycle).bind(owner).bind(envelope).fetch_optional(&mut **tx).await?.ok_or(CycleError::NotFound)?;
         Ok((
             CycleStatus::try_from(row.try_get::<&str, _>("status")?)
@@ -149,7 +149,13 @@ impl ExpenseRepository for PostgresExpenseRepository {
         funded: FundedExpense,
     ) -> Result<BudgetExpense, CycleError> {
         self.bounded(async {
-            let (mut tx,period,balance)=self.locked(owner,cycle,envelope).await?;
+            let mut tx=self.transaction(owner).await?;
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('zerobudget.envelopes:'||$1::uuid::text,0))").bind(cycle).execute(&mut *tx).await?;
+            let prior=sqlx::query("SELECT x.id,x.cycle_id,x.envelope_id,x.description,x.amount_cents,x.account_id,x.invoice_id,(x.occurred_on-DATE '0001-01-01'+1) AS day,EXISTS(SELECT 1 FROM budgeting.expense_reversals r WHERE r.expense_id=x.id) AS reversed FROM budgeting.expenses x WHERE x.owner_id=$1 AND x.id=$2").bind(owner).bind(id).fetch_optional(&mut *tx).await?;
+            if let Some(row)=prior{let old=decode(row)?;let(a,i)=funded.funding.ids();if old.cycle_id!=cycle||old.envelope_id!=envelope||old.expense!=funded.expense||old.account_id!=a||old.invoice_id!=i{return Err(CycleError::OperationConflict.into());}tx.commit().await?;return Ok(old);}
+            let(status,period,allocated)=Self::parent(&mut tx,owner,cycle,envelope).await?;if status!=CycleStatus::Active{return Err(CycleError::InvalidState.into());}
+            let spent:i64=sqlx::query_scalar("SELECT spent_cents FROM budgeting.envelope_balances WHERE owner_id=$1 AND id=$2 AND cycle_id=$3").bind(owner).bind(envelope).bind(cycle).fetch_one(&mut *tx).await?;
+            let balance=Spending::new(allocated,Money::from_cents(spent).map_err(|_|CycleError::Unavailable)?).map_err(|_|CycleError::Unavailable)?;
             let expense=funded.expense;
             let (account_id,invoice_id)=funded.funding.ids();
             if let Some(account_id)=account_id{
@@ -160,7 +166,7 @@ impl ExpenseRepository for PostgresExpenseRepository {
                 let (card,invoice)=crate::PostgresCreditRepository::funding(&mut tx,owner,invoice_id).await.map_err(credit_error)?;
                 if invoice.closed{return Err(CycleError::InvoiceClosed.into());}
                 if !invoice.period.contains(expense.day())||expense.day()<card.card.opened_day(){return Err(CycleError::Invalid.into());}
-                card.card.charge(card.outstanding,expense.amount()).map_err(|_|CycleError::CreditLimit)?;
+                card.card.charge_with_credit(card.outstanding,card.credit_balance,expense.amount()).map_err(|_|CycleError::CreditLimit)?;
             }
             expense.validate_period(period).map_err(domain)?;
             balance.record(CycleStatus::Active,expense.amount()).map_err(domain)?;

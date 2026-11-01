@@ -137,3 +137,75 @@ mod tests {
         assert!(CreditCard::new("", 1, 100).is_err());
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreditPosition {
+    pub outstanding: Money,
+    pub credit: Money,
+}
+impl CreditPosition {
+    pub fn from_net(net: i128) -> Result<Self, DomainError> {
+        if net > i128::from(i64::MAX) || net < -i128::from(i64::MAX) {
+            return Err(DomainError::AmountOverflow);
+        }
+        Ok(Self {
+            outstanding: Money::from_cents(net.max(0) as i64)?,
+            credit: Money::from_cents((-net).max(0) as i64)?,
+        })
+    }
+    pub fn invoice(
+        purchases: Money,
+        opening: Money,
+        credits: Money,
+        paid: Money,
+    ) -> Result<Self, DomainError> {
+        let gross = purchases.checked_add(opening)?;
+        Self::from_net(
+            i128::from(gross.to_cents())
+                - i128::from(credits.to_cents())
+                - i128::from(paid.to_cents()),
+        )
+    }
+}
+impl CreditCard {
+    pub fn charge_with_credit(
+        &self,
+        outstanding: Money,
+        credit: Money,
+        amount: Money,
+    ) -> Result<CreditPosition, DomainError> {
+        if amount == Money::zero() {
+            return Err(DomainError::InvalidAmount);
+        }
+        let net = i128::from(outstanding.to_cents()) - i128::from(credit.to_cents())
+            + i128::from(amount.to_cents());
+        if net > i128::from(self.limit.to_cents()) {
+            return Err(DomainError::CreditLimit);
+        }
+        CreditPosition::from_net(net)
+    }
+}
+
+#[cfg(test)]
+mod position_tests {
+    use super::*;
+    #[test]
+    fn refund_credit_and_debt_use_checked_signed_positions() {
+        let m = |v| Money::from_cents(v).unwrap();
+        let p = CreditPosition::invoice(m(100), m(10), m(200), m(0)).unwrap();
+        assert_eq!(p.credit, m(90));
+        assert_eq!(p.outstanding, m(0));
+        assert!(CreditPosition::from_net(-i128::from(i64::MAX) - 1).is_err());
+        assert!(CreditPosition::invoice(m(i64::MAX), m(1), m(0), m(0)).is_err());
+        let c = CreditCard::new("Card", 1, 100).unwrap();
+        assert_eq!(
+            c.charge_with_credit(p.outstanding, p.credit, m(150))
+                .unwrap()
+                .outstanding,
+            m(60)
+        );
+        assert!(c
+            .charge_with_credit(p.outstanding, p.credit, m(191))
+            .is_err());
+    }
+}

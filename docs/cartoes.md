@@ -5,8 +5,9 @@ a finalidade do gasto. Uma compra no crédito consome o envelope e aumenta a
 dívida; pagar a fatura debita uma conta e reduz essa dívida, **sem outra despesa**.
 
 Cartões começam sem dívida, com limite positivo e imutável. O limite é compartilhado
-entre todas as faturas. Não há importação de dívidas anteriores, parcelamento,
-juros, taxas, crédito rotativo, integração bancária ou agendamento automático.
+entre todas as faturas. Dívida anterior pode ser registrada manualmente na rota
+opening-debts. Parcelamento, juros, taxas, crédito rotativo, integração bancária e
+agendamento automático continuam fora do escopo.
 
 ## Fatura e compra
 
@@ -55,8 +56,8 @@ sendo exigida inclusive para replay. Descrições são comparadas após aparar e
 {"request_id":"UUID_DA_OPERACAO","account_id":"UUID_DA_CONTA","description":"Pagamento de fatura","occurred_on":"2026-11-01","amount_cents":12000}
 ```
 
-O pagamento e o movimento bancário são imutáveis. Não há estorno de pagamento
-nesta etapa. Falta de saldo ou sobrepagamento reverte tudo: sem pagamento parcial
+O pagamento e o movimento bancário são imutáveis. Correção de pagamento usa
+compensação vinculada ao movimento original. Falta de saldo ou sobrepagamento reverte tudo: sem pagamento parcial
 involuntário nem movimento sem correspondência. Não há nova despesa ou consumo
 de envelope ao liquidar uma fatura.
 
@@ -125,9 +126,13 @@ pagamento até você limpar `card_payment_request_id` para uma nova operação.
 ./scripts/e2e test credit
 ```
 
-A suíte E2E completa usa `./scripts/e2e test` com Dex real e bancos descartáveis.
+A suíte E2E completa usa `./scripts/e2e test` com Keycloak real e bancos descartáveis.
 Os testes Rust cobrem autorização, domínio, SQL/RLS, concorrência de compras entre
 faturas, idempotência e compras/pagamentos cujo histórico bruto supera `i64::MAX`.
 As integrações ignoradas devem usar `--include-ignored --test-threads=2`, conforme
 [AGENTS.md](../AGENTS.md), para limitar checkpoints de bancos temporários. As
 corridas financeiras dentro de cada cenário continuam sendo executadas em paralelo.
+
+Dívida inicial, compensação de pagamentos e créditos de devolução foram adicionados
+na etapa MVP. Consulte [planejamento e correções](planejamento-e-correcoes.md); as
+restrições descritas nas etapas anteriores devem ser lidas com essa evolução.

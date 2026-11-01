@@ -13,3 +13,7 @@ pub mod expense;
 pub mod banking;
 
 pub mod credit;
+
+pub mod planning;
+
+pub mod finance;

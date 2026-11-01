@@ -47,6 +47,8 @@ pub struct BankMovement {
     pub to_account_id: Option<Uuid>,
     pub expense_id: Option<Uuid>,
     pub card_payment_id: Option<Uuid>,
+    pub adjustment_id: Option<Uuid>,
+    pub reversed: bool,
     pub movement: CashMovement,
 }
 #[derive(Debug, Clone)]
@@ -161,7 +163,8 @@ impl BankingService {
         account: Uuid,
         input: MovementInput,
     ) -> Result<BankMovement, BankingError> {
-        self.post(user, None, account, input).await
+        self.post_with_id(user, Uuid::new_v4(), None, account, input)
+            .await
     }
     pub async fn transfer(
         &self,
@@ -174,16 +177,21 @@ impl BankingService {
         if from == to {
             return Err(BankingError::Invalid);
         }
-        self.post(user, Some(from), to, input).await
+        self.post_with_id(user, Uuid::new_v4(), Some(from), to, input)
+            .await
     }
-    async fn post(
+    pub async fn post_with_id(
         &self,
         user: &LocalUser,
+        request_id: Uuid,
         from: Option<Uuid>,
         to: Uuid,
         input: MovementInput,
     ) -> Result<BankMovement, BankingError> {
         require(user, Permission::WriteBudget)?;
+        if request_id.is_nil() || from == Some(to) {
+            return Err(BankingError::Invalid);
+        }
         let movement = CashMovement::new(
             &input.description,
             input.occurred_on.num_days_from_ce(),
@@ -191,7 +199,7 @@ impl BankingService {
         )
         .map_err(|_| BankingError::Invalid)?;
         self.repository
-            .post(user.id(), Uuid::new_v4(), from, to, movement)
+            .post(user.id(), request_id, from, to, movement)
             .await
     }
     pub async fn statement(
@@ -254,6 +262,8 @@ mod tests {
                 to_account_id: Some(to),
                 expense_id: None,
                 card_payment_id: None,
+                adjustment_id: None,
+                reversed: false,
                 kind: if from.is_some() {
                     "transfer"
                 } else {
@@ -339,8 +349,15 @@ mod tests {
     }
 }
 
+pub use credit::invoice_position;
 mod credit;
 pub use credit::{
     Card, CardInput, CardPayment, CreditRepository, CreditService, Invoice, InvoiceInput,
     InvoicePurchase, PaymentInput,
+};
+
+mod finance;
+pub use finance::{
+    CardCreditInput, Correction, CorrectionInput, CreditEntry, FinanceOverview, FinanceRepository,
+    FinanceService, OpeningDebtInput,
 };

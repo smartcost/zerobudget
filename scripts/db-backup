@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+if [[ $# != 1 ]]; then echo 'Uso: scripts/db-backup arquivo.dump (configuração PostgreSQL via PG*)' >&2; exit 2; fi
+: "${PGDATABASE:?Configure PGDATABASE}" "${PGUSER:?Configure PGUSER}"
+output=$1
+if [[ -e "$output" ]]; then echo 'O destino já existe.' >&2; exit 2; fi
+backup_tmp=$(mktemp "${output}.tmp.XXXXXX")
+trap 'rm -f -- "$backup_tmp"' EXIT
+pg_dump --format=custom --no-owner --no-acl --file="$backup_tmp"
+pg_restore --list "$backup_tmp" > /dev/null
+# Hard link publishes atomically without overwriting a concurrent backup.
+ln -- "$backup_tmp" "$output"
+echo 'Backup concluído.'

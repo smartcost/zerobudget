@@ -11,7 +11,7 @@
   <main>
     <p>ZeroBudget</p>
     <h1>Sua sessão</h1>
-    <p>Consulte o login pelo Dex e encerre a sessão desta aplicação.</p>
+    <p>Consulte o login pelo Keycloak e encerre a sessão desta aplicação.</p>
     <p id="status" role="status" aria-live="polite">Consultando sessão…</p>
     <dl id="identity" hidden>
       <dt>ID local</dt><dd id="user-id"></dd>
@@ -21,11 +21,13 @@
       <dt>Expiração</dt><dd id="expires"></dd>
     </dl>
     <nav aria-label="Ações da sessão">
-      <a id="login" href="/api/auth/login">Entrar com Dex</a>
+      <a id="login" href="/api/auth/login">Entrar com Keycloak</a>
+      <a href="/api/auth/signup">Criar conta</a>
+      <a href="/api/auth/recover">Recuperar senha</a>
       <button id="refresh" type="button">Consultar sessão</button>
       <button id="logout" type="button" disabled>Sair</button>
     </nav>
-    <p>O logout encerra a sessão do ZeroBudget. A sessão no Dex pode continuar ativa.</p>
+    <p>O logout encerra a sessão do ZeroBudget. A sessão no Keycloak pode continuar ativa.</p>
     <noscript>Habilite JavaScript para consultar a sessão e usar o botão Sair.</noscript>
   </main>
 </body>

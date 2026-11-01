@@ -8,13 +8,13 @@ use obz_domain::{envelope::Allocation, money::Money};
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
-const READ: &str = "SELECT c.id,c.period_start,c.period_end,c.income_cents,c.status,
+pub(crate) const READ: &str = "SELECT c.id,c.period_start,c.period_end,c.income_cents,c.status,c.carried_cents,c.source_cycle_id,
     (SELECT COALESCE(sum(e.allocated_cents),0)::bigint FROM budgeting.envelopes e
      WHERE e.cycle_id=c.id AND e.owner_id=c.owner_id) AS allocated_cents
     FROM budgeting.cycles c WHERE c.owner_id=$1 AND ($2::uuid IS NULL OR c.id=$2)
     ORDER BY c.period_start DESC,c.id DESC LIMIT $3 OFFSET $4";
 
-fn decode(row: sqlx::postgres::PgRow) -> Result<BudgetCycle, StorageError> {
+pub(crate) fn decode(row: sqlx::postgres::PgRow) -> Result<BudgetCycle, StorageError> {
     let income =
         Money::from_cents(row.try_get("income_cents")?).map_err(|_| CycleError::Unavailable)?;
     let allocated =
@@ -33,6 +33,8 @@ fn decode(row: sqlx::postgres::PgRow) -> Result<BudgetCycle, StorageError> {
         allocated_cents: allocated.to_cents(),
         available_cents: balance.available().to_cents(),
         status,
+        carried_cents: row.try_get("carried_cents")?,
+        source_cycle_id: row.try_get("source_cycle_id")?,
     })
 }
 
@@ -46,7 +48,7 @@ impl PostgresCycleRepository {
     }
     pub async fn check_schema(&self) -> Result<(), CycleError> {
         self.bounded(async {
-            sqlx::query("SELECT id,owner_id,period_start,period_end,income_cents,currency,status FROM budgeting.cycles LIMIT 0")
+            sqlx::query("SELECT id,owner_id,period_start,period_end,income_cents,currency,status,carried_cents,source_cycle_id,copy_request_id,copy_mode FROM budgeting.cycles LIMIT 0")
                 .execute(self.database.pool()).await?;
             Ok(())
         }).await
@@ -62,7 +64,9 @@ impl PostgresCycleRepository {
             let mut tx=self.database.pool().begin().await?;
             for statement in [
                 format!("GRANT USAGE ON SCHEMA budgeting TO \"{role}\""),
-                format!("GRANT SELECT, INSERT (id,owner_id,period_start,period_end,income_cents), UPDATE (status) ON budgeting.cycles TO \"{role}\""),
+                format!("GRANT SELECT, INSERT (id,owner_id,period_start,period_end,income_cents,carried_cents,source_cycle_id,copy_request_id,copy_mode), UPDATE (status) ON budgeting.cycles TO \"{role}\""),
+                format!("GRANT SELECT,INSERT(id,owner_id,cycle_id,from_envelope_id,to_envelope_id,amount_cents) ON budgeting.reallocations TO \"{role}\""),
+                format!("GRANT SELECT ON budgeting.envelope_balances TO \"{role}\""),
             ] { sqlx::query(&statement).execute(&mut *tx).await?; }
             tx.commit().await?;
             Ok(())

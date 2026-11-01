@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
-//! Authentication through Dex OIDC and deny-by-default application authorization.
-//! This crate does not interpret Dex access tokens as API JWTs.
+//! Authentication through OIDC OIDC and deny-by-default application authorization.
+//! This crate does not interpret OIDC access tokens as API JWTs.
 mod authorization;
 mod identity;
 mod oidc;
@@ -9,7 +9,7 @@ mod redis_store;
 mod session;
 
 pub use authorization::{Permission, Policy};
-pub use oidc::{AuthConfig, AuthError, DexAuth, Identity, LoginAttempt};
+pub use oidc::{AuthConfig, AuthError, Identity, LoginAttempt, OidcAuth};
 
 pub use session::{MemorySessionStore, Session, SessionError, SessionStore};
 

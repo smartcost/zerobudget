@@ -40,3 +40,7 @@ go.work.sum
 /tests/e2e/.runs/
 /tests/e2e/test-results/
 /tests/e2e/playwright-report/
+
+/deploy/.env.production
+*.dump
+*.dump.tmp.*

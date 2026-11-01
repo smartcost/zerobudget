@@ -56,13 +56,13 @@ Criar conta:
 Receber:
 
 ```json
-{"description":"Salário","occurred_on":"2026-10-31","amount_cents":500000}
+{"request_id":"UUID_DA_OPERACAO","description":"Salário","occurred_on":"2026-10-31","amount_cents":500000}
 ```
 
 Transferir (substitua os identificadores pelos UUIDs retornados):
 
 ```json
-{"from_account_id":"UUID_ORIGEM","to_account_id":"UUID_DESTINO","description":"Carteira","occurred_on":"2026-10-31","amount_cents":20000}
+{"request_id":"UUID_DA_OPERACAO","from_account_id":"UUID_ORIGEM","to_account_id":"UUID_DESTINO","description":"Carteira","occurred_on":"2026-10-31","amount_cents":20000}
 ```
 
 Nomes são aparados, de 1 a 100 caracteres sem controles, únicos por proprietário
@@ -80,12 +80,12 @@ sinais opostos. O saldo inicial fica na conta, sem movimento duplicado. Ordem:
 data decrescente, UUID decrescente. `limit` vai de 1 a 100 e `offset` até 100000.
 A paginação por offset pode mudar durante escritas concorrentes.
 
-Contas e movimentos são imutáveis nesta etapa. Não há renomeação, exclusão,
-conciliação, estorno de recebimentos/transferências ou conexão com bancos. Uma
-transferência inversa é uma nova operação explícita. Correções de recebimentos
-precisarão de uma operação própria futura. POST não tem deduplicação automática;
-se a resposta se perder, consulte o extrato antes de repetir. Preserve os limites
-de inteiros de 64 bits ao consumir JSON em JavaScript.
+Contas e movimentos originais são imutáveis. Recebimentos e transferências exigem
+request_id preservado em retries e admitem compensação integral pela rota própria;
+consulte [planejamento e correções](planejamento-e-correcoes.md). Não há renomeação,
+exclusão, conciliação ou conexão com bancos. Preserve limites de inteiros de 64 bits
+em JavaScript.
+
 
 ## Arquitetura e migração
 

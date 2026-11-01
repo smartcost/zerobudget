@@ -1,0 +1,31 @@
+services:
+  api:
+    build:
+      context: ..
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      API_BIND: 0.0.0.0:3000
+      AUTH_ALLOW_LOCAL_HTTP: "false"
+      AUTH_SESSION_BACKEND: redis
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs: [/tmp]
+    networks: [backend]
+  edge:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Configure API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [backend]
+networks:
+  backend:
+volumes:
+  caddy_data:
+  caddy_config:

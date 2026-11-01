@@ -1,23 +1,26 @@
-//! Manual integration test against the development Dex from Docker Compose.
+//! Manual integration test against the development Keycloak from Docker Compose.
 use std::io::{self, Write};
 
-use obz_auth::{AuthConfig, DexAuth, Permission, Policy};
+use obz_auth::{AuthConfig, OidcAuth, Permission, Policy};
 use openidconnect::url::Url;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redirect = "http://localhost:3000/api/auth/callback";
-    let auth = DexAuth::discover(AuthConfig::new(
-        "http://localhost:5556".into(),
-        "rust-app".into(),
-        "secret-rust-app-key".into(),
-        redirect.into(),
-        true,
-    )?)
+    let auth = OidcAuth::discover(
+        AuthConfig::new(
+            "http://localhost:8080/realms/zerobudget".into(),
+            "zerobudget".into(),
+            "local-keycloak-client-secret".into(),
+            redirect.into(),
+            true,
+        )?
+        .keycloak(),
+    )
     .await?;
     let (url, attempt) = auth.begin_login();
     println!("Abra esta URL no navegador:\n{url}\n");
-    println!("Login local: admin / password");
+    println!("Login local: admin@zerobudget.local / Local-Password-123!");
     println!("Após autorizar, o navegador pode mostrar erro de conexão: este exemplo não inicia um servidor na porta 3000.");
     println!("Copie a URL completa da barra de endereço e cole abaixo. Não compartilhe essa URL.");
     print!("URL de retorno: ");
@@ -32,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let parameters: Vec<_> = callback.query_pairs().collect();
     if parameters.iter().any(|(key, _)| key == "error") {
-        return Err("O Dex recusou ou cancelou a autorização".into());
+        return Err("O Keycloak recusou ou cancelou a autorização".into());
     }
     let parameter = |name: &str| -> Result<String, Box<dyn std::error::Error>> {
         let values: Vec<_> = parameters.iter().filter(|(key, _)| key == name).collect();

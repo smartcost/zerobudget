@@ -111,10 +111,11 @@ impl Config {
                 .parse()?,
             origin: url.origin().ascii_serialization(),
             secure_cookies: url.scheme() == "https",
-            issuer: env::var("DEX_ISSUER").unwrap_or_else(|_| "http://localhost:5556".into()),
-            client_id: env::var("DEX_CLIENT_ID").unwrap_or_else(|_| "rust-app".into()),
-            client_secret: env::var("DEX_CLIENT_SECRET")
-                .map_err(|_| "DEX_CLIENT_SECRET is required")?,
+            issuer: env::var("OIDC_ISSUER")
+                .unwrap_or_else(|_| "http://localhost:8080/realms/zerobudget".into()),
+            client_id: env::var("OIDC_CLIENT_ID").unwrap_or_else(|_| "zerobudget".into()),
+            client_secret: env::var("OIDC_CLIENT_SECRET")
+                .map_err(|_| "OIDC_CLIENT_SECRET is required")?,
             callback: url.join("/api/auth/callback")?.to_string(),
             local_http,
             storage,
@@ -158,12 +159,13 @@ impl Config {
         Ok(Arc::new(repository))
     }
     pub fn auth_config(&self) -> Result<AuthConfig, AuthError> {
-        AuthConfig::new(
+        Ok(AuthConfig::new(
             self.issuer.clone(),
             self.client_id.clone(),
             self.client_secret.clone(),
             self.callback.clone(),
             self.local_http,
-        )
+        )?
+        .keycloak())
     }
 }

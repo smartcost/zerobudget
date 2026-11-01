@@ -70,6 +70,7 @@ struct CardResponse {
     opened_on: chrono::NaiveDate,
     credit_limit_cents: i64,
     outstanding_cents: i64,
+    credit_balance_cents: i64,
     available_credit_cents: i64,
     currency: &'static str,
 }
@@ -84,6 +85,7 @@ impl From<Card> for CardResponse {
             opened_on: date(c.card.opened_day()),
             credit_limit_cents: c.card.limit().to_cents(),
             outstanding_cents: c.outstanding.to_cents(),
+            credit_balance_cents: c.credit_balance.to_cents(),
             available_credit_cents: c
                 .card
                 .limit()
@@ -103,16 +105,16 @@ struct InvoiceResponse {
     due_on: chrono::NaiveDate,
     purchases_cents: i64,
     paid_cents: i64,
+    opening_debt_cents: i64,
+    credits_cents: i64,
+    credit_balance_cents: i64,
     outstanding_cents: i64,
     status: &'static str,
 }
 impl From<Invoice> for InvoiceResponse {
     fn from(i: Invoice) -> Self {
-        let remaining = i
-            .purchases
-            .checked_sub(i.paid)
-            .expect("validated invoice balance")
-            .to_cents();
+        let position = obz_banking::invoice_position(&i);
+        let remaining = position.0;
         Self {
             id: i.id,
             card_id: i.card_id,
@@ -121,6 +123,9 @@ impl From<Invoice> for InvoiceResponse {
             due_on: date(i.period.due()),
             purchases_cents: i.purchases.to_cents(),
             paid_cents: i.paid.to_cents(),
+            opening_debt_cents: i.opening_debt.to_cents(),
+            credits_cents: i.credits.to_cents(),
+            credit_balance_cents: position.1,
             outstanding_cents: remaining,
             status: if !i.closed {
                 "open"
@@ -140,6 +145,7 @@ struct PaymentResponse {
     description: String,
     occurred_on: chrono::NaiveDate,
     amount_cents: i64,
+    status: &'static str,
 }
 impl From<CardPayment> for PaymentResponse {
     fn from(p: CardPayment) -> Self {
@@ -150,6 +156,7 @@ impl From<CardPayment> for PaymentResponse {
             description: p.movement.description().into(),
             occurred_on: date(p.movement.day()),
             amount_cents: p.movement.amount().to_cents(),
+            status: if p.reversed { "reversed" } else { "posted" },
         }
     }
 }

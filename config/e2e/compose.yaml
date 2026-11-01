@@ -34,10 +34,17 @@ services:
       interval: 1s
       timeout: 3s
       retries: 45
-  dex:
-    image: dexidp/dex:v2.37.0@sha256:f579d00721b0d842328c43a562f50343c54b0048ef2d58d6b54e750c21fc7938
-    command: ["dex", "serve", "/etc/dex/e2e.yaml"]
-    ports: ["127.0.0.1:${E2E_DEX_PORT}:5556"]
-    volumes: ["${E2E_DEX_CONFIG}:/etc/dex/e2e.yaml:ro"]
+  keycloak:
+    build: ./config/keycloak
+    image: zerobudget-keycloak:26.8.1
+    command: [start-dev, --import-realm]
+    environment:
+      KC_HOSTNAME: http://localhost:${E2E_KEYCLOAK_PORT}
+    ports: ["127.0.0.1:${E2E_KEYCLOAK_PORT}:8080"]
+    volumes: ["${E2E_KEYCLOAK_REALM}:/opt/keycloak/data/import/zerobudget.json:ro"]
+  mailpit:
+    image: axllent/mailpit:v1.27.10@sha256:b1f1be18af530d939a11ee8820b379e0c88eeec204d904bfad68862adced3a5a
+    ports: ["127.0.0.1:${E2E_MAILPIT_PORT}:8025"]
+
 volumes:
   app_data:

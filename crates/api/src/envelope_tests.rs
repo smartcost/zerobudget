@@ -28,8 +28,13 @@ async fn request(
     csrf: Option<&str>,
     method: &str,
     path: &str,
-    body: Value,
+    mut body: Value,
 ) -> Response {
+    if method == "POST" && (path.ends_with("/expenses") || path.ends_with("/receipts") || path.ends_with("/transfers")) {
+        if let Some(object) = body.as_object_mut() {
+            object.entry("request_id").or_insert_with(|| serde_json::json!(Uuid::new_v4()));
+        }
+    }
     let mut request = axum::http::Request::builder()
         .method(method)
         .uri(path)
@@ -76,6 +81,8 @@ impl Setup {
         fixture.state.envelopes = Some(EnvelopeService::new(Arc::new(
             PostgresEnvelopeRepository::new(runtime.clone()),
         )));
+        fixture.state.planning=Some(obz_cycle::PlanningService::new(Arc::new(obz_infrastructure::PostgresPlanningRepository::new(runtime.clone()))));
+        fixture.state.finance=Some(obz_banking::FinanceService::new(Arc::new(obz_infrastructure::PostgresFinanceRepository::new(runtime.clone()))));
         fixture.state.credit=Some(obz_banking::CreditService::new(Arc::new(obz_infrastructure::PostgresCreditRepository::new(runtime.clone()))));
         fixture.state.banking=Some(obz_banking::BankingService::new(Arc::new(obz_infrastructure::PostgresBankingRepository::new(runtime.clone()))));
         fixture.state.expenses = Some(obz_cycle::ExpenseService::new(Arc::new(obz_infrastructure::PostgresExpenseRepository::new(runtime.clone()))));
@@ -710,3 +717,6 @@ mod banking_tests;
 
 #[path = "credit_tests.rs"]
 mod credit_tests;
+
+#[path="mvp_tests.rs"]
+mod mvp_tests;

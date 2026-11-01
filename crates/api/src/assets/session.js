@@ -21,7 +21,7 @@
     clearIdentity();
     const response = await fetch('/api/auth/me', { credentials: 'same-origin' });
     if (response.status === 401) {
-      status.textContent = 'Sem sessão ativa (HTTP 401). Entre com Dex para iniciar uma sessão.';
+      status.textContent = 'Sem sessão ativa (HTTP 401). Entre com Keycloak para iniciar uma sessão.';
       return response.status;
     }
     if (!response.ok) throw new Error(`Consulta retornou HTTP ${response.status}.`);

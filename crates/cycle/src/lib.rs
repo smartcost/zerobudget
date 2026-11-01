@@ -35,6 +35,8 @@ pub enum CycleError {
     InvoiceClosed,
     #[error("credit limit exceeded")]
     CreditLimit,
+    #[error("operation identifier reused with different data")]
+    OperationConflict,
     #[error("budget storage unavailable")]
     Unavailable,
 }
@@ -46,6 +48,8 @@ pub struct BudgetCycle {
     pub income_cents: i64,
     pub allocated_cents: i64,
     pub available_cents: i64,
+    pub carried_cents: i64,
+    pub source_cycle_id: Option<Uuid>,
     pub status: CycleStatus,
 }
 
@@ -134,6 +138,8 @@ impl CycleService {
                     income_cents: cycle.income_cents(),
                     allocated_cents: 0,
                     available_cents: cycle.available_cents(),
+                    carried_cents: 0,
+                    source_cycle_id: None,
                     status: cycle.status(),
                 },
             )
@@ -256,4 +262,9 @@ mod lifecycle_tests {
 mod expense;
 pub use expense::{
     BudgetExpense, ExpenseFunding, ExpenseInput, ExpenseRepository, ExpenseService, FundedExpense,
+};
+
+mod planning;
+pub use planning::{
+    CopyInput, CycleSummary, EnvelopeSummary, PlanningRepository, PlanningService, Reallocation,
 };

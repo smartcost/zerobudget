@@ -28,6 +28,22 @@
       "description": "Envie operações individuais. Criar ciclo exige datas configuradas e grava dados persistentes; não existe DELETE de ciclos. IDs retornados ficam no ambiente.",
       "item": [
         {
+          "name": "Recuperar senha (abrir no navegador)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/auth/recover",
+            "description": "Abra esta URL no navegador para seguir o fluxo com cookie, e-mail e PKCE. No ambiente local, consulte e-mails em http://localhost:8025. O cliente Postman não substitui o fluxo do navegador. E2E automatiza o fluxo completo."
+          }
+        },
+        {
+          "name": "Cadastro no Keycloak (abrir no navegador)",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/auth/signup",
+            "description": "Abra esta URL no navegador para seguir o fluxo com cookie, e-mail e PKCE. No ambiente local, consulte e-mails em http://localhost:8025. O cliente Postman não substitui o fluxo do navegador. E2E automatiza o fluxo completo."
+          }
+        },
+        {
           "name": "Saúde",
           "request": {
             "method": "GET",
@@ -441,7 +457,7 @@
             "description": "Ciclo ativo; data dentro do período; saldo suficiente. Gravação persistente. Após falha de transporte, consulte as despesas antes de repetir. Conta própria obrigatória; débito e consumo do envelope são atômicos.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"account_id\": \"{{account_id}}\",\n  \"description\": {{expense_description_json}},\n  \"occurred_on\": \"{{expense_date}}\",\n  \"amount_cents\": {{expense_amount_cents}}\n}",
+              "raw": "{\n  \"request_id\": \"{{operation_Registrar_despesa}}\",\n  \"account_id\": \"{{account_id}}\",\n  \"description\": {{expense_description_json}},\n  \"occurred_on\": \"{{expense_date}}\",\n  \"amount_cents\": {{expense_amount_cents}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -469,6 +485,15 @@
                 "exec": [
                   "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
                   "if (pm.response.code === 201) { const value = pm.response.json(); pm.environment.set('expense_id', value.id); pm.test('Despesa registrada', function () { pm.expect(value.status).to.eql('posted'); }); }"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('operation_Registrar_despesa')) pm.environment.set('operation_Registrar_despesa', pm.variables.replaceIn('{{$guid}}'));"
                 ]
               }
             }
@@ -639,7 +664,7 @@
             "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática.",
             "body": {
               "mode": "raw",
-              "raw": "{\n \"description\": {{banking_description_json}},\n \"occurred_on\": \"{{banking_date}}\",\n \"amount_cents\": {{banking_amount_cents}}\n}",
+              "raw": "{\n  \"request_id\": \"{{operation_Registrar_recebimento}}\",\n \"description\": {{banking_description_json}},\n \"occurred_on\": \"{{banking_date}}\",\n \"amount_cents\": {{banking_amount_cents}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -665,6 +690,15 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('operation_Registrar_recebimento')) pm.environment.set('operation_Registrar_recebimento', pm.variables.replaceIn('{{$guid}}'));"
                 ]
               }
             }
@@ -688,7 +722,7 @@
             "description": "Contas manuais em BRL. Sessão e permissões do orçamento; mutações exigem CSRF. Não altera renda planejada. Operação persistente, sem repetição automática.",
             "body": {
               "mode": "raw",
-              "raw": "{\n \"from_account_id\": \"{{account_id}}\",\n \"to_account_id\": \"{{to_account_id}}\",\n \"description\": {{banking_description_json}},\n \"occurred_on\": \"{{banking_date}}\",\n \"amount_cents\": {{banking_amount_cents}}\n}",
+              "raw": "{\n  \"request_id\": \"{{operation_Transferir_entre_contas}}\",\n \"from_account_id\": \"{{account_id}}\",\n \"to_account_id\": \"{{to_account_id}}\",\n \"description\": {{banking_description_json}},\n \"occurred_on\": \"{{banking_date}}\",\n \"amount_cents\": {{banking_amount_cents}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -714,6 +748,15 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('operation_Transferir_entre_contas')) pm.environment.set('operation_Transferir_entre_contas', pm.variables.replaceIn('{{$guid}}'));"
                 ]
               }
             }
@@ -939,7 +982,7 @@
             "description": "Cartão e fatura manuais, budget:read/write conforme operação. Compra consome envelope; pagamento apenas liquida dívida. Veja docs/cartoes.md.",
             "body": {
               "mode": "raw",
-              "raw": "{\n \"invoice_id\": \"{{invoice_id}}\",\n \"description\": {{expense_description_json}},\n \"occurred_on\": \"{{expense_date}}\",\n \"amount_cents\": {{expense_amount_cents}}\n}",
+              "raw": "{\n  \"request_id\": \"{{operation_Registrar_compra_no_cart_o}}\",\n \"invoice_id\": \"{{invoice_id}}\",\n \"description\": {{expense_description_json}},\n \"occurred_on\": \"{{expense_date}}\",\n \"amount_cents\": {{expense_amount_cents}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -967,6 +1010,15 @@
                 "exec": [
                   "pm.test('HTTP 201', function () { pm.expect(pm.response.code).to.eql(201); });",
                   "if (pm.response.code === 201) pm.environment.set('expense_id',pm.response.json().id);"
+                ]
+              }
+            },
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('operation_Registrar_compra_no_cart_o')) pm.environment.set('operation_Registrar_compra_no_cart_o', pm.variables.replaceIn('{{$guid}}'));"
                 ]
               }
             }
@@ -2072,6 +2124,224 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Backend MVP",
+      "item": [
+        {
+          "name": "Realocar saldo",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/reallocations",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Use /auth/session para a sessão. Preserve request_id em retries; para uma nova operação, limpe mvp_request_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_id\": \"{{mvp_request_0}}\",\n  \"from_envelope_id\": \"{{envelope_id}}\",\n  \"to_envelope_id\": \"{{target_envelope_id}}\",\n  \"amount_cents\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('mvp_request_0')) pm.environment.set('mvp_request_0', pm.variables.replaceIn('{{$guid}}'));",
+                  "// Limpe mvp_request_0 para iniciar uma nova operação."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resumo do ciclo",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/summary",
+            "header": [],
+            "description": "Use /auth/session para a sessão. Preserve request_id em retries; para uma nova operação, limpe mvp_request_id."
+          }
+        },
+        {
+          "name": "Próximo ciclo",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cycles/{{cycle_id}}/next",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Use /auth/session para a sessão. Preserve request_id em retries; para uma nova operação, limpe mvp_request_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_id\": \"{{mvp_request_2}}\",\n  \"period_start\": \"2027-01-01\",\n  \"period_end\": \"2027-02-01\",\n  \"new_income_cents\": 10000,\n  \"mode\": \"carry_remaining\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('mvp_request_2')) pm.environment.set('mvp_request_2', pm.variables.replaceIn('{{$guid}}'));",
+                  "// Limpe mvp_request_2 para iniciar uma nova operação."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Compensar movimento",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/movements/{{movement_id}}/reverse",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Use /auth/session para a sessão. Preserve request_id em retries; para uma nova operação, limpe mvp_request_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_id\": \"{{mvp_request_3}}\",\n  \"description\": \"Correção integral\",\n  \"occurred_on\": \"2026-12-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('mvp_request_3')) pm.environment.set('mvp_request_3', pm.variables.replaceIn('{{$guid}}'));",
+                  "// Limpe mvp_request_3 para iniciar uma nova operação."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Dívida inicial",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cards/{{card_id}}/opening-debts",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Use /auth/session para a sessão. Preserve request_id em retries; para uma nova operação, limpe mvp_request_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_id\": \"{{mvp_request_4}}\",\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"description\": \"Dívida inicial\",\n  \"occurred_on\": \"2026-12-01\",\n  \"amount_cents\": 1000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('mvp_request_4')) pm.environment.set('mvp_request_4', pm.variables.replaceIn('{{$guid}}'));",
+                  "// Limpe mvp_request_4 para iniciar uma nova operação."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crédito de devolução",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/cards/{{card_id}}/credits",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "description": "Use /auth/session para a sessão. Preserve request_id em retries; para uma nova operação, limpe mvp_request_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"request_id\": \"{{mvp_request_5}}\",\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"expense_id\": \"{{expense_id}}\",\n  \"description\": \"Devolução integral\",\n  \"occurred_on\": \"2026-12-01\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('mvp_request_5')) pm.environment.set('mvp_request_5', pm.variables.replaceIn('{{$guid}}'));",
+                  "// Limpe mvp_request_5 para iniciar uma nova operação."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Posição financeira",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/overview",
+            "header": [],
+            "description": "Use /auth/session para a sessão. Preserve request_id em retries; para uma nova operação, limpe mvp_request_id."
+          }
         }
       ]
     }

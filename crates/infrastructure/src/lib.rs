@@ -19,3 +19,9 @@ pub use postgres_banking::PostgresBankingRepository;
 
 mod postgres_credit;
 pub use postgres_credit::PostgresCreditRepository;
+
+mod postgres_planning;
+pub use postgres_planning::PostgresPlanningRepository;
+
+mod postgres_finance;
+pub use postgres_finance::PostgresFinanceRepository;

@@ -26,7 +26,7 @@ fn account(row: sqlx::postgres::PgRow) -> Result<BankAccount, Error> {
             .map_err(|_| BankingError::Unavailable)?,
     })
 }
-fn movement(row: &sqlx::postgres::PgRow) -> Result<BankMovement, Error> {
+pub(crate) fn movement(row: &sqlx::postgres::PgRow) -> Result<BankMovement, Error> {
     let description: String = row.try_get("description")?;
     Ok(BankMovement {
         id: row.try_get("id")?,
@@ -35,6 +35,8 @@ fn movement(row: &sqlx::postgres::PgRow) -> Result<BankMovement, Error> {
         to_account_id: row.try_get("to_account_id")?,
         expense_id: row.try_get("expense_id")?,
         card_payment_id: row.try_get("card_payment_id")?,
+        adjustment_id: row.try_get("adjustment_id")?,
+        reversed: row.try_get("reversed")?,
         movement: CashMovement::new(
             &description,
             row.try_get("day")?,
@@ -63,7 +65,7 @@ pub(crate) fn sql_error(e: sqlx::Error) -> BankingError {
         Some("42501") => BankingError::Forbidden,
         Some("ZB004") => BankingError::Invalid,
         Some("ZB005") => BankingError::InsufficientFunds,
-        Some("ZB006") => BankingError::Overflow,
+        Some("ZB006" | "22003") => BankingError::Overflow,
         _ => BankingError::Unavailable,
     }
 }
@@ -169,13 +171,14 @@ impl BankingRepository for PostgresBankingRepository {
         self.bounded(async{
   let mut tx=self.transaction(owner).await?;
   sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended('zerobudget.banking:'||$1::uuid::text,0))").bind(owner).execute(&mut *tx).await?;
+  if let Some(r)=sqlx::query("SELECT id,kind,from_account_id,to_account_id,expense_id,card_payment_id,adjustment_id,EXISTS(SELECT 1 FROM banking.adjustments a WHERE a.owner_id=movements.owner_id AND a.movement_id=movements.id) AS reversed,description,(occurred_on-DATE '0001-01-01'+1) AS day,amount_cents FROM banking.movements WHERE owner_id=$1 AND id=$2").bind(owner).bind(id).fetch_optional(&mut *tx).await?{let old=movement(&r)?;if old.from_account_id!=from||old.to_account_id!=Some(to)||old.movement!=m||old.kind!=if from.is_some(){"transfer"}else{"receipt"}{return Err(BankingError::CreditConflict.into());}tx.commit().await?;return Ok(old);}
   let target=Self::load(&mut tx,owner,to).await?;m.validate_opening(&target.account).map_err(|_|BankingError::Invalid)?;
   obz_domain::banking::credit(target.balance,m.amount()).map_err(|_|BankingError::Overflow)?;
   if let Some(source)=from{let a=Self::load(&mut tx,owner,source).await?;m.validate_opening(&a.account).map_err(|_|BankingError::Invalid)?;obz_domain::banking::debit(a.balance,m.amount()).map_err(|_|BankingError::InsufficientFunds)?;}
   let kind=if from.is_some(){"transfer"}else{"receipt"};
   let date=sqlx::types::chrono::NaiveDate::from_num_days_from_ce_opt(m.day()).ok_or(BankingError::Invalid)?;
   sqlx::query("INSERT INTO banking.movements(id,owner_id,kind,from_account_id,to_account_id,description,occurred_on,amount_cents) VALUES($1,$2,$3,$4,$5,$6,$7,$8)").bind(id).bind(owner).bind(kind).bind(from).bind(to).bind(m.description()).bind(date).bind(m.amount().to_cents()).execute(&mut *tx).await?;
-  tx.commit().await?;Ok(BankMovement{id,kind:kind.into(),from_account_id:from,to_account_id:Some(to),expense_id:None,card_payment_id:None,movement:m})
+  tx.commit().await?;Ok(BankMovement{id,kind:kind.into(),from_account_id:from,to_account_id:Some(to),expense_id:None,card_payment_id:None,adjustment_id:None,reversed:false,movement:m})
  }).await
     }
     async fn statement(
@@ -187,7 +190,7 @@ impl BankingRepository for PostgresBankingRepository {
     ) -> Result<Vec<StatementEntry>, BankingError> {
         self.bounded(async{
   let mut tx=self.transaction(owner).await?;Self::load(&mut tx,owner,id).await?;
-  let rows=sqlx::query("SELECT id,kind,from_account_id,to_account_id,expense_id,card_payment_id,description,(occurred_on-DATE '0001-01-01'+1) AS day,amount_cents,CASE WHEN to_account_id=$2 THEN amount_cents ELSE -amount_cents END AS delta FROM banking.movements WHERE owner_id=$1 AND (from_account_id=$2 OR to_account_id=$2) ORDER BY occurred_on DESC,id DESC LIMIT $3 OFFSET $4").bind(owner).bind(id).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
+  let rows=sqlx::query("SELECT id,kind,from_account_id,to_account_id,expense_id,card_payment_id,adjustment_id,EXISTS(SELECT 1 FROM banking.adjustments a WHERE a.owner_id=movements.owner_id AND a.movement_id=movements.id) AS reversed,description,(occurred_on-DATE '0001-01-01'+1) AS day,amount_cents,CASE WHEN to_account_id=$2 THEN amount_cents ELSE -amount_cents END AS delta FROM banking.movements WHERE owner_id=$1 AND (from_account_id=$2 OR to_account_id=$2) ORDER BY occurred_on DESC,id DESC LIMIT $3 OFFSET $4").bind(owner).bind(id).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
   let records=rows.iter().map(|r|Ok(StatementEntry{movement:movement(r)?,delta_cents:r.try_get("delta")?})).collect::<Result<Vec<_>,Error>>()?;tx.commit().await?;Ok(records)
  }).await
     }

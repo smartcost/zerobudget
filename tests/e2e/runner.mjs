@@ -91,8 +91,9 @@ function composeEnv(state) {
     ...commonEnv,
     E2E_POSTGRES_PORT: String(state.ports.POSTGRES),
     E2E_REDIS_PORT: String(state.ports.REDIS),
-    E2E_DEX_PORT: String(state.ports.DEX),
-    E2E_DEX_CONFIG: path.join(state.dir, "dex.yaml"),
+    E2E_KEYCLOAK_PORT: String(state.ports.KEYCLOAK),
+    E2E_KEYCLOAK_REALM:path.join(state.dir,"realm.json"),
+    E2E_MAILPIT_PORT:String(state.ports.MAILPIT),
   };
 }
 function composeArgs(state, args) {
@@ -132,14 +133,14 @@ async function portFree(port) {
     server.once("error", () =>
       reject(
         new Error(
-          `Porta E2E ${port} ocupada. Configure ZB_E2E_API_PORT/DEX_PORT/POSTGRES_PORT/REDIS_PORT; nenhum processo foi encerrado.`,
+          `Porta E2E ${port} ocupada. Configure ZB_E2E_API_PORT/KEYCLOAK_PORT/POSTGRES_PORT/REDIS_PORT/MAILPIT_PORT; nenhum processo foi encerrado.`,
         ),
       ),
     );
     server.listen(port, "127.0.0.1", () => server.close(resolve));
   });
 }
-async function waitHttp(url, check, timeout = 45000) {
+async function waitHttp(url, check, timeout = 120000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     if (apiProcess?.exitCode !== null && apiProcess?.exitCode !== undefined)
@@ -215,8 +216,8 @@ async function setup(force = false) {
   );
 }
 async function start() {
-  const names = ["API", "DEX", "POSTGRES", "REDIS"];
-  const defaults = [3100, 5656, 5540, 6480];
+  const names = ["API", "KEYCLOAK", "POSTGRES", "REDIS", "MAILPIT"];
+  const defaults = [3100, 8180, 5540, 6480, 8125];
   const ports = Object.fromEntries(
     names.map((name, i) => {
       const value = Number(process.env[`ZB_E2E_${name}_PORT`] || defaults[i]);
@@ -225,7 +226,7 @@ async function start() {
       return [name, value];
     }),
   );
-  if (new Set(Object.values(ports)).size !== 4)
+  if (new Set(Object.values(ports)).size !== names.length)
     throw new Error("As portas E2E devem ser distintas.");
   for (const port of Object.values(ports)) await portFree(port);
   await execute("docker", ["compose", "version"]);
@@ -260,39 +261,24 @@ async function start() {
     status: "starting",
     ports,
     origin: `http://localhost:${ports.API}`,
-    issuer: `http://localhost:${ports.DEX}`,
+    issuer: `http://localhost:${ports.KEYCLOAK}/realms/zerobudget`,
+    mailpit:`http://localhost:${ports.MAILPIT}`,
     adminUrl: `postgres://zb_e2e_admin:e2e-admin-password@127.0.0.1:${ports.POSTGRES}/zerobudget_e2e`,
   };
   save(active);
-  const bcrypt = await import("./node_modules/bcryptjs/index.js");
-  const hash = bcrypt.hashSync("e2e-password", 10);
-  const users = ["alice", "bob", "denied", "reader", "writer"];
-  const userYaml = users
-    .map((name, i) =>
-      [
-        `  - email: ${name}@e2e.invalid`,
-        `    username: ${name}`,
-        `    userID: 00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`,
-        `    hash: ${JSON.stringify(hash)}`,
-      ].join("\n"),
-    )
-    .join("\n");
-  const dex = readFileSync(
-    path.join(repo, "config/e2e/dex-config.template.yaml"),
-    "utf8",
-  )
-    .replaceAll("__DEX_PORT__", String(ports.DEX))
-    .replaceAll("__API_PORT__", String(ports.API))
-    .replace("# __USERS__", userYaml);
-  writeFileSync(path.join(dir, "dex.yaml"), dex);
-  writeFileSync(
-    path.join(dir, ".env"),
-    `E2E_POSTGRES_PORT=${ports.POSTGRES}
-E2E_DEX_PORT=${ports.DEX}
+  const realm=JSON.parse(readFileSync(path.join(repo,"config/keycloak/realm.json"),"utf8"));
+  realm.clients[0].secret="e2e-client-secret";
+  realm.clients[0].redirectUris=[active.origin+"/api/auth/callback"];
+  realm.clients[0].webOrigins=[active.origin];
+  realm.smtpServer.from="no-reply@e2e.invalid";
+  realm.users=["alice","bob","denied","reader","writer"].map((name,i)=>({id:`00000000-0000-4000-8000-${String(i+1).padStart(12,"0")}`,username:`${name}@e2e.invalid`,email:`${name}@e2e.invalid`,firstName:name,lastName:"E2E",emailVerified:true,enabled:true,credentials:[{type:"password",value:"E2e-Password-123!",temporary:false}]}));
+  writeFileSync(path.join(dir,"realm.json"),JSON.stringify(realm,null,2));
+  writeFileSync(path.join(dir,".env"),`E2E_POSTGRES_PORT=${ports.POSTGRES}
+E2E_KEYCLOAK_PORT=${ports.KEYCLOAK}
 E2E_REDIS_PORT=${ports.REDIS}
-E2E_DEX_CONFIG=${path.join(dir, "dex.yaml")}
-`,
-  );
+E2E_MAILPIT_PORT=${ports.MAILPIT}
+E2E_KEYCLOAK_REALM=${path.join(dir,"realm.json")}
+`);
   for (const [source, dest] of [
     ["obz-api", "obz-api"],
     ["examples/auth_admin", "auth_admin"],
@@ -303,7 +289,7 @@ E2E_DEX_CONFIG=${path.join(dir, "dex.yaml")}
   }
   await execute(
     "docker",
-    composeArgs(active, ["up", "-d", "--wait", "--wait-timeout", "90"]),
+    composeArgs(active, ["up", "-d", "--build", "--wait", "--wait-timeout", "120"]),
     { env: composeEnv(active) },
   );
   await waitHttp(
@@ -312,7 +298,7 @@ E2E_DEX_CONFIG=${path.join(dir, "dex.yaml")}
       response.ok && (await response.json()).issuer === active.issuer,
   );
   await waitHttp(
-    active.issuer + "/keys",
+    active.issuer + "/protocol/openid-connect/certs",
     async (response) => response.ok && (await response.json()).keys.length > 0,
   );
   await execute(path.join(dir, "migrate"), [], {
@@ -328,9 +314,9 @@ E2E_DEX_CONFIG=${path.join(dir, "dex.yaml")}
     ZB_E2E_RUN_ID: project,
     API_BIND: `127.0.0.1:${ports.API}`,
     API_PUBLIC_URL: active.origin,
-    DEX_ISSUER: active.issuer,
-    DEX_CLIENT_ID: "zerobudget-e2e",
-    DEX_CLIENT_SECRET: "e2e-client-secret",
+    OIDC_ISSUER: active.issuer,
+    OIDC_CLIENT_ID: "zerobudget",
+    OIDC_CLIENT_SECRET: "e2e-client-secret",
     AUTH_ALLOW_LOCAL_HTTP: "true",
     AUTH_REDIS_TIMEOUT_MS: "3000",
     AUTH_MAX_PENDING: "128",
@@ -419,7 +405,7 @@ async function shutdown(signal) {
 async function main() {
   if (command === "help") {
     console.log(
-      "Uso: ./scripts/e2e setup | test [filtros Playwright] | ui | up | clean | mcp | mcp-check",
+      "Uso: ./scripts/e2e setup | test [filtros Playwright] | verify | ui | up | clean | mcp | mcp-check",
     );
     return;
   }
@@ -443,7 +429,7 @@ async function main() {
     await setup(true);
     return;
   }
-  if (!["test", "ui", "up", "mcp-check"].includes(command))
+  if (!["test", "verify", "ui", "up", "mcp-check"].includes(command))
     throw new Error("Comando E2E desconhecido. Use ./scripts/e2e help.");
   await setup();
   process.on("SIGINT", () => void shutdown("SIGINT"));
@@ -478,6 +464,17 @@ async function main() {
         ],
         { env: stateEnv },
       );
+    if (command === "verify") {
+      const testEnv = {
+        ...stateEnv,
+        AUTH_TEST_DATABASE_URL: state.adminUrl,
+        AUTH_TEST_RUNTIME_DATABASE_URL: `postgres://zb_e2e_runtime:e2e-runtime-password@127.0.0.1:${state.ports.POSTGRES}/zerobudget_e2e`,
+        AUTH_TEST_REDIS_URL: `redis://127.0.0.1:${state.ports.REDIS}/0`,
+        ZB_MIGRATE_BIN: path.join(state.dir, "migrate"),
+      };
+      await execute("cargo", ["test", "--workspace", "--locked", "--", "--include-ignored", "--test-threads=2"], { env: testEnv });
+      await execute("python3", [path.join(repo, "tests/operations/backup_restore.py")], { env: testEnv });
+    }
   } catch (error) {
     if (active) {
       const logs = spawnSync(

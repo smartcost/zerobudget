@@ -10,9 +10,9 @@ zero: a renda deve ser distribuída entre finalidades explícitas. Desenvolva em
 etapas pequenas, com regras de negócio verificáveis e isolamento entre usuários.
 Não amplie a etapa em andamento para funcionalidades futuras sem necessidade.
 
-Atualmente há autenticação de usuários pelo Dex, sessões no servidor, permissões
+Atualmente há autenticação de usuários pelo Keycloak, sessões no servidor, permissões
 locais, ciclos planejados/ativos/fechados, envelopes, despesas com estorno, contas
-manuais, recebimentos, transferências próprias, cartões e faturas manuais.
+manuais, recebimentos, transferências próprias, cartões e faturas manuais, realocações, compensações, dívida inicial e continuidade entre ciclos.
 Autenticação entre serviços, integração bancária, parcelamento e juros não estão implementados. Não trate
 propostas de documentação como funcionalidades entregues.
 
@@ -27,7 +27,7 @@ propostas de documentação como funcionalidades entregues.
 | `obz-infrastructure` | Conexão PostgreSQL, migrações e implementações dos repositórios |
 | `obz-api` | Transporte HTTP, configuração e composição das dependências |
 
-- O domínio não conhece HTTP, SQLx, Redis, Dex ou variáveis de ambiente.
+- O domínio não conhece HTTP, SQLx, Redis, Keycloak ou variáveis de ambiente.
 - Casos de uso dependem de contratos de persistência, nunca de implementações
   PostgreSQL. Não coloque SQL, conversão de linhas ou privilégios nesses crates.
 - `infrastructure` implementa os contratos de `auth`, `cycle` e `banking`; esses crates não
@@ -64,14 +64,24 @@ propostas de documentação como funcionalidades entregues.
   request_id torna o pagamento idempotente, com conflito para dados diferentes.
   Estornos de compra só alteram faturas abertas; fechamento da fatura é definitivo.
   Preserve a ordem dos locks: ciclo primeiro, proprietário bancário depois.
+  Realocações ativas só movem saldo não gasto; alocação efetiva é base + entradas − saídas.
+  Compensações são integrais, append-only e idempotentes; não apagam movimentos.
+  Devolução de compra fechada vira crédito em fatura aberta, preservando ciclo histórico.
+  Crédito de cartão não é caixa. Dívida inicial não é despesa nem receita fictícia.
+  Próximo ciclo exige origem fechada e sucessor único; transporte não cria recebimento.
+  Despesas, recebimentos e transferências HTTP exigem request_id preservado em retries.
   O fim do período é exclusivo. Mudar esses contratos exige regra explícita e testes.
 
 ## Autenticação, autorização e isolamento
 
 - Preserve Authorization Code com PKCE, validação de `state`, `nonce`, assinatura,
   issuer, audience e expiração. Identidades devem vir do fluxo OIDC verificado.
-- Não aceite tokens do Dex como bearer das rotas de negócio nem exponha tokens,
+- Não aceite tokens do Keycloak como bearer das rotas de negócio nem exponha tokens,
   verificadores PKCE, cookies ou segredos em respostas, logs e commits.
+- Cadastro e recuperação pertencem ao Keycloak; exija e-mail verificado no callback.
+  Tokens do provedor ficam somente no armazenamento privado do servidor. Faça
+  introspecção online em requisições autenticadas e falhe sem fallback. A imagem
+  Keycloak inclui política obrigatória de revogação de outras sessões ao trocar senha.
 - Negue permissões financeiras por padrão. Login não concede direitos financeiros.
   Consulte estado da conta e permissões atuais nas requisições protegidas.
 - O proprietário vem da identidade autenticada, nunca do corpo da requisição.
@@ -94,8 +104,8 @@ propostas de documentação como funcionalidades entregues.
   A preparação completa do banco usa `cargo run -p obz-api --example migrate`.
 - Não conceda permissões a usuários nem amplie privilégios persistentes fora do
   escopo autorizado. Não remova volumes ou dados para resolver falhas de testes.
-- O banco da aplicação é separado do banco interno do Dex. No Compose local,
-  Dex usa a porta 5556, PostgreSQL da aplicação 5440 e Redis 6380. Preserve serviços
+- O banco da aplicação é separado do banco interno do Keycloak. No Compose local,
+  Keycloak usa a porta 8080, PostgreSQL da aplicação 5440 e Redis 6380. Preserve serviços
   de outros projetos e processos locais que não foram iniciados para a tarefa.
 - A API lê o ambiente, sem carregar `.env` automaticamente. `.env.example` contém
   configuração de desenvolvimento; não versione `.env` ou credenciais reais.
@@ -112,7 +122,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 ```
 
 - Testes HTTP usam um provedor OIDC temporário e abrem portas em loopback.
-- A regressão E2E usa `./scripts/e2e test`: Dex real, navegador e API com serviços
+- A regressão E2E usa `./scripts/e2e test`: Keycloak real, navegador e API com serviços
   descartáveis exclusivos. O guia é `docs/api/e2e.md`. Não use o banco local para
   preparar usuários E2E; não faça bypass de login ou CSRF. Playwright MCP usa
   `./scripts/e2e up` e o launcher `./scripts/e2e mcp`; a prova é `mcp-check`.

@@ -5,7 +5,7 @@ da API foram aplicados no banco local da aplicação, após autorização explí
 
 ## Comportamento
 
-Após validar o login OIDC no Dex, a API cadastra ou encontra o usuário pelo par
+Após validar o login OIDC no Keycloak, a API cadastra ou encontra o usuário pelo par
 `(issuer, subject)`. Esse par é único no banco e preserva o UUID local, inclusive
 em logins concorrentes e em reinícios da API. Email e nome não identificam contas,
 não são usados para vincular identidades e não concedem permissões.
@@ -37,12 +37,12 @@ A resposta de `/api/auth/me` mantém os campos anteriores e acrescenta:
 ```
 
 A página `/auth/session` exibe esses campos. Não há endpoint HTTP de administração
-nem concessão automática a usuários chamados `admin` no Dex.
+nem concessão automática a usuários chamados `admin` no Keycloak.
 
 ## Banco separado e privilégios
 
 O serviço `app-postgres` do Compose usa banco `zerobudget`, volume próprio e porta
-local `127.0.0.1:5440`. O PostgreSQL do Dex permanece separado, com seu banco e
+local `127.0.0.1:5440`. O PostgreSQL do Keycloak permanece separado, com seu banco e
 volume anteriores. `APP_POSTGRES_PORT` altera a porta publicada; ajuste as URLs.
 
 A migração `migrations/0001_identity_and_permissions.sql` cria:
@@ -184,7 +184,7 @@ com PostgreSQL e Redis reais. Foram verificados cadastro concorrente e estável,
 isolamento entre issuers, persistência, negação por padrão, revogação, bloqueio,
 auditoria, ausência de privilégios administrativos no runtime e falha de
 transporte sem concessão indevida. O teste HTTP usa um provedor OIDC local com
-tokens RSA assinados. A validação manual com Dex real e a credencial restrita da API também passou:
+tokens RSA assinados. A validação manual com Keycloak real e a credencial restrita da API também passou:
 foi criado um UUID local sem concessões financeiras, o UUID e a sessão permaneceram
 válidos após reiniciar a API, e logout retornou 204 seguido de consulta 401.
 Os privilégios aplicados foram conferidos por leitura no PostgreSQL. As operações

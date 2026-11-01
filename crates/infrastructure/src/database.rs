@@ -84,6 +84,13 @@ impl Database {
             timeout: config.timeout,
         })
     }
+    pub async fn probe(&self) -> Result<(), DatabaseError> {
+        tokio::time::timeout(self.timeout, sqlx::query("SELECT 1").execute(&self.pool))
+            .await
+            .map_err(|_| DatabaseError::Unavailable)?
+            .map_err(|_| DatabaseError::Unavailable)?;
+        Ok(())
+    }
     pub fn pool(&self) -> &PgPool {
         &self.pool
     }

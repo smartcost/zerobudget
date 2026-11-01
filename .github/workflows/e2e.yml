@@ -36,8 +36,15 @@ jobs:
         run: ./scripts/e2e setup
       - name: Browser system dependencies (CI only)
         run: node tests/e2e/node_modules/@playwright/test/cli.js install --with-deps chromium
-      - name: Real Dex and API regression
-        run: ./scripts/e2e test
+      - name: PostgreSQL client for recovery verification
+        run: |
+          client_dir=$(mktemp -d)
+          for client in psql pg_dump pg_restore; do
+            ln -s "$GITHUB_WORKSPACE/tests/operations/pg-client" "$client_dir/$client"
+          done
+          echo "$client_dir" >> "$GITHUB_PATH"
+      - name: Real Keycloak, SQL and recovery regression
+        run: ./scripts/e2e verify
       - name: MCP protocol and real browser login
         run: ./scripts/e2e mcp-check
       - name: Cleanup owned E2E resources

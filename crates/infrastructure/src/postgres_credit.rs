@@ -6,18 +6,13 @@ use async_trait::async_trait;
 use obz_banking::{BankingError, Card, CardPayment, CreditRepository, Invoice, InvoicePurchase};
 use obz_domain::{
     banking::CashMovement,
-    credit::{CreditCard, InvoiceBalance, InvoicePeriod},
+    credit::{CreditCard, InvoicePeriod},
     money::Money,
 };
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
-const CARDS:&str="SELECT c.id,c.name,(c.opened_on-DATE '0001-01-01'+1) AS day,c.credit_limit_cents,
- (COALESCE((SELECT sum(x.amount_cents::numeric) FROM budgeting.expenses x JOIN banking.card_invoices i ON i.id=x.invoice_id AND i.owner_id=x.owner_id WHERE i.card_id=c.id AND x.owner_id=c.owner_id AND NOT EXISTS(SELECT 1 FROM budgeting.expense_reversals r WHERE r.expense_id=x.id)),0)-COALESCE((SELECT sum(p.amount_cents::numeric) FROM banking.card_payments p JOIN banking.card_invoices i ON i.id=p.invoice_id AND i.owner_id=p.owner_id WHERE i.card_id=c.id AND p.owner_id=c.owner_id),0))::bigint AS outstanding
- FROM banking.credit_cards c WHERE c.owner_id=$1 AND ($2::uuid IS NULL OR c.id=$2) ORDER BY c.id LIMIT $3 OFFSET $4";
-const INVOICES:&str="SELECT i.id,i.card_id,i.status,(i.period_start-DATE '0001-01-01'+1) AS start_day,(i.period_end-DATE '0001-01-01'+1) AS end_day,(i.due_on-DATE '0001-01-01'+1) AS due_day,
- (SELECT COALESCE(sum(x.amount_cents),0)::bigint FROM budgeting.expenses x WHERE x.invoice_id=i.id AND x.owner_id=i.owner_id AND NOT EXISTS(SELECT 1 FROM budgeting.expense_reversals r WHERE r.expense_id=x.id)) AS purchases,
- (SELECT COALESCE(sum(p.amount_cents),0)::bigint FROM banking.card_payments p WHERE p.invoice_id=i.id AND p.owner_id=i.owner_id) AS paid
- FROM banking.card_invoices i WHERE i.owner_id=$1 AND i.card_id=$2 AND ($3::uuid IS NULL OR i.id=$3) ORDER BY i.period_start DESC,i.id DESC LIMIT $4 OFFSET $5";
+const CARDS:&str="SELECT c.id,c.name,(c.opened_on-DATE '0001-01-01'+1) AS day,c.credit_limit_cents,greatest(p.debt,0)::bigint AS outstanding,greatest(-p.debt,0)::bigint AS credit_balance FROM banking.credit_cards c JOIN banking.card_positions p ON p.id=c.id AND p.owner_id=c.owner_id WHERE c.owner_id=$1 AND ($2::uuid IS NULL OR c.id=$2) ORDER BY c.id LIMIT $3 OFFSET $4";
+const INVOICES:&str="SELECT i.id,i.card_id,i.status,(i.period_start-DATE '0001-01-01'+1) AS start_day,(i.period_end-DATE '0001-01-01'+1) AS end_day,(i.due_on-DATE '0001-01-01'+1) AS due_day,p.purchases::bigint AS purchases,p.paid::bigint AS paid,p.opening_debt::bigint AS opening_debt,p.credits::bigint AS credits FROM banking.card_invoices i JOIN banking.invoice_positions p ON p.id=i.id AND p.owner_id=i.owner_id WHERE i.owner_id=$1 AND i.card_id=$2 AND ($3::uuid IS NULL OR i.id=$3) ORDER BY i.period_start DESC,i.id DESC LIMIT $4 OFFSET $5";
 fn card(row: sqlx::postgres::PgRow) -> Result<Card, Error> {
     let name: String = row.try_get("name")?;
     let c = CreditCard::new(
@@ -34,6 +29,7 @@ fn card(row: sqlx::postgres::PgRow) -> Result<Card, Error> {
         id: row.try_get("id")?,
         card: c,
         outstanding,
+        credit_balance: money(row.try_get("credit_balance")?)?,
     })
 }
 fn money(n: i64) -> Result<Money, Error> {
@@ -42,7 +38,10 @@ fn money(n: i64) -> Result<Money, Error> {
 fn invoice(row: sqlx::postgres::PgRow) -> Result<Invoice, Error> {
     let purchases = money(row.try_get("purchases")?)?;
     let paid = money(row.try_get("paid")?)?;
-    InvoiceBalance::new(purchases, paid).map_err(|_| BankingError::Unavailable)?;
+    let opening = money(row.try_get("opening_debt")?)?;
+    let credits = money(row.try_get("credits")?)?;
+    obz_domain::credit::CreditPosition::invoice(purchases, opening, credits, paid)
+        .map_err(|_| BankingError::Unavailable)?;
     Ok(Invoice {
         id: row.try_get("id")?,
         card_id: row.try_get("card_id")?,
@@ -55,6 +54,8 @@ fn invoice(row: sqlx::postgres::PgRow) -> Result<Invoice, Error> {
         closed: row.try_get::<&str, _>("status")? == "closed",
         purchases,
         paid,
+        opening_debt: opening,
+        credits,
     })
 }
 fn payment(row: sqlx::postgres::PgRow) -> Result<CardPayment, Error> {
@@ -63,6 +64,7 @@ fn payment(row: sqlx::postgres::PgRow) -> Result<CardPayment, Error> {
         id: row.try_get("id")?,
         invoice_id: row.try_get("invoice_id")?,
         account_id: row.try_get("account_id")?,
+        reversed: row.try_get("reversed")?,
         movement: CashMovement::new(
             &description,
             row.try_get("day")?,
@@ -84,7 +86,7 @@ impl PostgresCreditRepository {
         Self { database }
     }
     pub async fn check_schema(&self) -> Result<(), BankingError> {
-        self.bounded(async{for sql in ["SELECT id,owner_id,name,opened_on,credit_limit_cents FROM banking.credit_cards LIMIT 0","SELECT id,owner_id,card_id,period_start,period_end,due_on,status FROM banking.card_invoices LIMIT 0","SELECT id,owner_id,invoice_id,account_id,occurred_on,amount_cents FROM banking.card_payments LIMIT 0"]{sqlx::query(sql).execute(self.database.pool()).await?;}Ok(())}).await
+        self.bounded(async{for sql in ["SELECT id,owner_id,debt FROM banking.card_positions LIMIT 0","SELECT id,owner_id,name,opened_on,credit_limit_cents FROM banking.credit_cards LIMIT 0","SELECT id,owner_id,card_id,period_start,period_end,due_on,status FROM banking.card_invoices LIMIT 0","SELECT id,owner_id,invoice_id,account_id,occurred_on,amount_cents FROM banking.card_payments LIMIT 0"]{sqlx::query(sql).execute(self.database.pool()).await?;}Ok(())}).await
     }
     pub async fn grant_runtime_role(&self, role: &str) -> Result<(), BankingError> {
         if role.is_empty()
@@ -93,7 +95,7 @@ impl PostgresCreditRepository {
         {
             return Err(BankingError::Invalid);
         }
-        self.bounded(async{let mut tx=self.database.pool().begin().await?;for sql in [format!("GRANT USAGE ON SCHEMA banking TO \"{role}\""),format!("GRANT SELECT,INSERT(id,owner_id,name,opened_on,credit_limit_cents) ON banking.credit_cards TO \"{role}\""),format!("GRANT SELECT,INSERT(id,owner_id,card_id,period_start,period_end,due_on),UPDATE(status) ON banking.card_invoices TO \"{role}\""),format!("GRANT SELECT,INSERT(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) ON banking.card_payments TO \"{role}\""),format!("GRANT INSERT(invoice_id) ON budgeting.expenses TO \"{role}\""),format!("GRANT INSERT(card_payment_id) ON banking.movements TO \"{role}\"")]{sqlx::query(&sql).execute(&mut *tx).await?;}tx.commit().await?;Ok(())}).await
+        self.bounded(async{let mut tx=self.database.pool().begin().await?;for sql in [format!("GRANT USAGE ON SCHEMA banking TO \"{role}\""),format!("GRANT SELECT,INSERT(id,owner_id,name,opened_on,credit_limit_cents) ON banking.credit_cards TO \"{role}\""),format!("GRANT SELECT,INSERT(id,owner_id,card_id,period_start,period_end,due_on),UPDATE(status) ON banking.card_invoices TO \"{role}\""),format!("GRANT SELECT,INSERT(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) ON banking.card_payments TO \"{role}\""),format!("GRANT SELECT ON banking.adjustments,banking.opening_debts,banking.card_credits,banking.invoice_totals,banking.invoice_positions,banking.card_positions TO \"{role}\""),format!("GRANT INSERT(id,owner_id,movement_id,description,occurred_on) ON banking.adjustments TO \"{role}\""),format!("GRANT INSERT(id,owner_id,card_id,invoice_id,description,occurred_on,amount_cents) ON banking.opening_debts TO \"{role}\""),format!("GRANT INSERT(id,owner_id,card_id,invoice_id,expense_id,opening_debt_id,description,occurred_on,amount_cents) ON banking.card_credits TO \"{role}\""),format!("GRANT INSERT(adjustment_id) ON banking.movements TO \"{role}\""),format!("GRANT INSERT(invoice_id) ON budgeting.expenses TO \"{role}\""),format!("GRANT INSERT(card_payment_id) ON banking.movements TO \"{role}\"")]{sqlx::query(&sql).execute(&mut *tx).await?;}tx.commit().await?;Ok(())}).await
     }
     async fn bounded<T>(
         &self,
@@ -188,7 +190,7 @@ impl PostgresCreditRepository {
 #[async_trait]
 impl CreditRepository for PostgresCreditRepository {
     async fn create(&self, owner: Uuid, id: Uuid, c: CreditCard) -> Result<Card, BankingError> {
-        self.bounded(async{let mut tx=self.tx(owner,false).await?;sqlx::query("INSERT INTO banking.credit_cards(id,owner_id,name,opened_on,credit_limit_cents) VALUES($1,$2,$3,$4,$5)").bind(id).bind(owner).bind(c.name()).bind(date(c.opened_day())?).bind(c.limit().to_cents()).execute(&mut *tx).await?;tx.commit().await?;Ok(Card{id,card:c,outstanding:Money::zero()})}).await
+        self.bounded(async{let mut tx=self.tx(owner,false).await?;sqlx::query("INSERT INTO banking.credit_cards(id,owner_id,name,opened_on,credit_limit_cents) VALUES($1,$2,$3,$4,$5)").bind(id).bind(owner).bind(c.name()).bind(date(c.opened_day())?).bind(c.limit().to_cents()).execute(&mut *tx).await?;tx.commit().await?;Ok(Card{id,card:c,outstanding:Money::zero(),credit_balance:Money::zero()})}).await
     }
     async fn cards(
         &self,
@@ -219,7 +221,7 @@ impl CreditRepository for PostgresCreditRepository {
         card: Uuid,
         p: InvoicePeriod,
     ) -> Result<Invoice, BankingError> {
-        self.bounded(async{let mut tx=self.tx(owner,true).await?;Self::card(&mut tx,owner,card).await?;let prior=sqlx::query("SELECT (period_start-DATE '0001-01-01'+1) AS start,(period_end-DATE '0001-01-01'+1) AS end,(due_on-DATE '0001-01-01'+1) AS due FROM banking.card_invoices WHERE owner_id=$1 AND card_id=$2 AND period_start<$3 AND period_end>$4 LIMIT 1").bind(owner).bind(card).bind(date(p.end())?).bind(date(p.start())?).fetch_optional(&mut *tx).await?;if let Some(row)=prior{let other=InvoicePeriod::new(row.try_get("start")?,row.try_get("end")?,row.try_get("due")?).map_err(|_|BankingError::Unavailable)?;if p.overlaps(other){return Err(BankingError::CreditConflict.into());}}sqlx::query("INSERT INTO banking.card_invoices(id,owner_id,card_id,period_start,period_end,due_on) VALUES($1,$2,$3,$4,$5,$6)").bind(id).bind(owner).bind(card).bind(date(p.start())?).bind(date(p.end())?).bind(date(p.due())?).execute(&mut *tx).await?;tx.commit().await?;Ok(Invoice{id,card_id:card,period:p,closed:false,purchases:Money::zero(),paid:Money::zero()})}).await
+        self.bounded(async{let mut tx=self.tx(owner,true).await?;Self::card(&mut tx,owner,card).await?;let prior=sqlx::query("SELECT (period_start-DATE '0001-01-01'+1) AS start,(period_end-DATE '0001-01-01'+1) AS end,(due_on-DATE '0001-01-01'+1) AS due FROM banking.card_invoices WHERE owner_id=$1 AND card_id=$2 AND period_start<$3 AND period_end>$4 LIMIT 1").bind(owner).bind(card).bind(date(p.end())?).bind(date(p.start())?).fetch_optional(&mut *tx).await?;if let Some(row)=prior{let other=InvoicePeriod::new(row.try_get("start")?,row.try_get("end")?,row.try_get("due")?).map_err(|_|BankingError::Unavailable)?;if p.overlaps(other){return Err(BankingError::CreditConflict.into());}}sqlx::query("INSERT INTO banking.card_invoices(id,owner_id,card_id,period_start,period_end,due_on) VALUES($1,$2,$3,$4,$5,$6)").bind(id).bind(owner).bind(card).bind(date(p.start())?).bind(date(p.end())?).bind(date(p.due())?).execute(&mut *tx).await?;tx.commit().await?;Ok(Invoice{id,card_id:card,period:p,closed:false,purchases:Money::zero(),paid:Money::zero(),opening_debt:Money::zero(),credits:Money::zero()})}).await
     }
     async fn invoices(
         &self,
@@ -274,9 +276,11 @@ impl CreditRepository for PostgresCreditRepository {
         p: CardPayment,
     ) -> Result<CardPayment, BankingError> {
         self.bounded(async{let mut tx=self.tx(owner,true).await?;let i=Self::invoice(&mut tx,owner,card,id).await?;
- let prior=sqlx::query("SELECT id,invoice_id,account_id,description,(occurred_on-DATE '0001-01-01'+1) AS day,amount_cents FROM banking.card_payments WHERE owner_id=$1 AND id=$2").bind(owner).bind(p.id).fetch_optional(&mut *tx).await?;
+ let prior=sqlx::query("SELECT p.id,p.invoice_id,p.account_id,p.description,EXISTS(SELECT 1 FROM banking.movements m JOIN banking.adjustments a ON a.movement_id=m.id AND a.owner_id=m.owner_id WHERE m.card_payment_id=p.id AND m.owner_id=p.owner_id) AS reversed,(p.occurred_on-DATE '0001-01-01'+1) AS day,p.amount_cents FROM banking.card_payments p WHERE p.owner_id=$1 AND p.id=$2").bind(owner).bind(p.id).fetch_optional(&mut *tx).await?;
  if let Some(row)=prior{let existing=payment(row)?;if existing.invoice_id!=id||existing.account_id!=p.account_id||existing.movement!=p.movement{return Err(BankingError::CreditConflict.into());}tx.commit().await?;return Ok(existing);}
- let account=PostgresBankingRepository::load(&mut tx,owner,p.account_id).await?;let balance=InvoiceBalance::new(i.purchases,i.paid).map_err(|_|BankingError::Unavailable)?;balance.pay(i.closed,p.movement.amount()).map_err(|e|match e{obz_domain::DomainError::CreditOverpayment=>BankingError::Overpayment,obz_domain::DomainError::InvalidInvoiceStatus=>BankingError::InvalidState,_=>BankingError::Invalid})?;if p.movement.day()<i.period.end(){return Err(BankingError::Invalid.into());}p.movement.validate_opening(&account.account).map_err(|_|BankingError::Invalid)?;obz_domain::banking::debit(account.balance,p.movement.amount()).map_err(|_|BankingError::InsufficientFunds)?;sqlx::query("INSERT INTO banking.card_payments(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) VALUES($1,$2,$3,$4,$5,$6,$7)").bind(p.id).bind(owner).bind(id).bind(p.account_id).bind(p.movement.description()).bind(date(p.movement.day())?).bind(p.movement.amount().to_cents()).execute(&mut *tx).await?;tx.commit().await?;Ok(p)}).await
+ let account=PostgresBankingRepository::load(&mut tx,owner,p.account_id).await?;let balance=obz_domain::credit::CreditPosition::invoice(i.purchases,i.opening_debt,i.credits,i.paid).map_err(|_|BankingError::Unavailable)?;if !i.closed{return Err(BankingError::InvalidState.into());}
+ if p.movement.amount().to_cents()>balance.outstanding.to_cents(){return Err(BankingError::Overpayment.into());}
+ if p.movement.day()<i.period.end(){return Err(BankingError::Invalid.into());}p.movement.validate_opening(&account.account).map_err(|_|BankingError::Invalid)?;obz_domain::banking::debit(account.balance,p.movement.amount()).map_err(|_|BankingError::InsufficientFunds)?;sqlx::query("INSERT INTO banking.card_payments(id,owner_id,invoice_id,account_id,description,occurred_on,amount_cents) VALUES($1,$2,$3,$4,$5,$6,$7)").bind(p.id).bind(owner).bind(id).bind(p.account_id).bind(p.movement.description()).bind(date(p.movement.day())?).bind(p.movement.amount().to_cents()).execute(&mut *tx).await?;tx.commit().await?;Ok(p)}).await
     }
     async fn purchases(
         &self,
@@ -296,6 +300,6 @@ impl CreditRepository for PostgresCreditRepository {
         limit: u32,
         offset: u32,
     ) -> Result<Vec<CardPayment>, BankingError> {
-        self.bounded(async{let mut tx=self.tx(owner,false).await?;Self::invoice(&mut tx,owner,card,id).await?;let rows=sqlx::query("SELECT id,invoice_id,account_id,description,(occurred_on-DATE '0001-01-01'+1) AS day,amount_cents FROM banking.card_payments WHERE owner_id=$1 AND invoice_id=$2 ORDER BY occurred_on DESC,id DESC LIMIT $3 OFFSET $4").bind(owner).bind(id).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;let records=rows.into_iter().map(payment).collect::<Result<Vec<_>,_>>()?;tx.commit().await?;Ok(records)}).await
+        self.bounded(async{let mut tx=self.tx(owner,false).await?;Self::invoice(&mut tx,owner,card,id).await?;let rows=sqlx::query("SELECT p.id,p.invoice_id,p.account_id,p.description,EXISTS(SELECT 1 FROM banking.movements m JOIN banking.adjustments a ON a.movement_id=m.id AND a.owner_id=m.owner_id WHERE m.card_payment_id=p.id AND m.owner_id=p.owner_id) AS reversed,(p.occurred_on-DATE '0001-01-01'+1) AS day,p.amount_cents FROM banking.card_payments p WHERE p.owner_id=$1 AND p.invoice_id=$2 ORDER BY p.occurred_on DESC,p.id DESC LIMIT $3 OFFSET $4").bind(owner).bind(id).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;let records=rows.into_iter().map(payment).collect::<Result<Vec<_>,_>>()?;tx.commit().await?;Ok(records)}).await
     }
 }

@@ -1,11 +1,11 @@
 use obz_api::{config::Config, router, AppState};
-use obz_auth::DexAuth;
+use obz_auth::OidcAuth;
 use std::{sync::Arc, time::Duration};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::from_env()?;
-    let auth = DexAuth::discover(config.auth_config()?).await?;
+    let auth = OidcAuth::discover(config.auth_config()?).await?;
     let store = config.session_store().await?;
     let database = config.database().await?;
     let users = obz_infrastructure::PostgresIdentityRepository::from_database(&database);
@@ -18,7 +18,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     banking.check_schema().await?;
     let credit = obz_infrastructure::PostgresCreditRepository::new(database.clone());
     credit.check_schema().await?;
-    let cycles = obz_infrastructure::PostgresCycleRepository::new(database);
+    let planning = obz_infrastructure::PostgresPlanningRepository::new(database.clone());
+    let finance = obz_infrastructure::PostgresFinanceRepository::new(database.clone());
+    let cycles = obz_infrastructure::PostgresCycleRepository::new(database.clone());
     cycles.check_schema().await?;
     let state = AppState::new(
         auth,
@@ -27,6 +29,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         store,
         Arc::new(users),
     )
+    .with_database(database)
+    .with_planning(obz_cycle::PlanningService::new(Arc::new(planning)))
+    .with_finance(obz_banking::FinanceService::new(Arc::new(finance)))
     .with_cycles(obz_cycle::CycleService::new(Arc::new(cycles)))
     .with_envelopes(obz_cycle::EnvelopeService::new(Arc::new(envelopes)))
     .with_expenses(obz_cycle::ExpenseService::new(Arc::new(expenses)))
@@ -45,9 +50,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let Ok(auth_config) = config.auth_config() else {
                 continue;
             };
-            match DexAuth::discover(auth_config).await {
+            match OidcAuth::discover(auth_config).await {
                 Ok(auth) => background_state.replace_auth(auth).await,
-                Err(_) => eprintln!("Dex metadata refresh failed; retaining previous signing keys"),
+                Err(_) => {
+                    eprintln!("OIDC metadata refresh failed; retaining previous signing keys")
+                }
             }
         }
     });
@@ -63,6 +70,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let result = axum::serve(listener, app)
         .with_graceful_shutdown(async {
+            #[cfg(unix)]
+            {
+                let mut term =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .expect("SIGTERM handler");
+                tokio::select! {_ = tokio::signal::ctrl_c()=>{},_ = term.recv()=>{}}
+            }
+            #[cfg(not(unix))]
             let _ = tokio::signal::ctrl_c().await;
         })
         .await;

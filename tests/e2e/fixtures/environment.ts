@@ -15,6 +15,7 @@ export type State = {
   dir: string;
   origin: string;
   issuer: string;
+  mailpit:string;
   adminUrl: string;
 };
 export function state(): State {

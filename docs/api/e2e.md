@@ -1,7 +1,7 @@
-# E2E de API: um comando, login Dex automático
+# E2E de API: um comando, login Keycloak automático
 
 O caminho principal para validar o backend é a suíte Playwright. Ela usa a API
-Rust, Dex, Redis e PostgreSQL reais em ambiente descartável e autentica pelo mesmo
+Rust, Keycloak, Redis e PostgreSQL reais em ambiente descartável e autentica pelo mesmo
 fluxo Authorization Code + PKCE do navegador. Cookies e CSRF são compartilhados
 pelo contexto Playwright, sem copiar valores ou criar um login alternativo.
 
@@ -55,7 +55,7 @@ A concorrência financeira é testada explicitamente por requisições simultân
 ## O que é automatizado
 
 1. Cada execução recebe um projeto Compose `zb-e2e-<id>` e volume próprios.
-2. O Dex recebe cinco usuários estáticos de E2E: alice, bob, denied, reader e writer.
+2. O Keycloak recebe cinco usuários estáticos de E2E: alice, bob, denied, reader e writer.
    Suas credenciais de teste são `nome@e2e.invalid` / `e2e-password`, válidas apenas
    neste ambiente descartável. A configuração de desenvolvimento não é alterada.
 3. As migrações e privilégios runtime são aplicados no banco `zerobudget_e2e`.
@@ -78,20 +78,20 @@ reabilitadas no teardown para permitir repetir os testes no UI.
 | Serviço | Porta padrão |
 | --- | --- |
 | API E2E | 3100 |
-| Dex E2E | 5656 |
+| Keycloak E2E | 8180 |
 | PostgreSQL E2E | 5540 |
 | Redis E2E | 6480 |
 
 As portas são publicadas apenas em loopback. A API e o navegador rodam no host,
 com issuer e callback gerados para a mesma origem. Isso preserva a exigência atual
 de TLS fora de loopback. Credenciais administrativas não são passadas à API.
-O Dex E2E usa SQLite efêmero próprio; o PostgreSQL da aplicação e o Redis são reais.
+O Keycloak E2E usa SQLite efêmero próprio; o PostgreSQL da aplicação e o Redis são reais.
 
 Se uma porta estiver ocupada, o comando falha e não encerra o processo existente.
 Para usar outro conjunto de portas:
 
 ```sh
-ZB_E2E_API_PORT=3200 ZB_E2E_DEX_PORT=5756 \
+ZB_E2E_API_PORT=3200 ZB_E2E_KEYCLOAK_PORT=5756 \
 ZB_E2E_POSTGRES_PORT=5640 ZB_E2E_REDIS_PORT=6580 ./scripts/e2e test
 ```
 
@@ -115,7 +115,7 @@ Não use `docker compose down -v` no ambiente de desenvolvimento como limpeza E2
 
 O servidor oficial está fixado no lockfile e é iniciado por um launcher do
 repositório. A prova automática usa o SDK MCP via stdio e uma ferramenta do próprio
-servidor para fazer login Dex e confirmar HTTP 200 com cookies compartilhados:
+servidor para fazer login Keycloak e confirmar HTTP 200 com cookies compartilhados:
 
 ```sh
 ./scripts/e2e mcp-check
@@ -146,14 +146,14 @@ manifesto desejado. Encerre o cliente MCP antes de `./scripts/e2e clean`.
 
 A versão fixada expõe `browser_run_code_unsafe`, capaz de executar código no
 processo do servidor. Conecte somente um cliente confiável. A allowlist de origens
-limita a navegação usual a API/Dex locais, mas não é uma fronteira de segurança para
+limita a navegação usual a API/Keycloak locais, mas não é uma fronteira de segurança para
 código executado nessa ferramenta. Não forneça credenciais de produção ao processo.
 O formato específico de configuração global pode variar entre clientes; o arquivo
 exemplo não é interpretado automaticamente por todos os aplicativos.
 
 ## Cobertura e contrato
 
-Os 44 cenários cobrem:
+Os 55 cenários cobrem:
 
 - login/callback/PKCE, cookies HttpOnly, sessão e logout;
 - ausência de sessão e bearer arbitrário recusado;
@@ -213,3 +213,18 @@ não são dependências dos crates Rust.
 
 O Postman permanece como cliente exploratório opcional. Para regressão cotidiana,
 prefira `./scripts/e2e test`.
+
+A suíte `mvp.spec.ts` cobre realocação concorrente, replay após fechamento,
+compensações bancárias, dívida inicial, devolução em fatura futura, continuidade e
+resumos. Execute `./scripts/e2e test mvp` para esse recorte. Os testes continuam
+sem gerar scripts para colar no navegador.
+
+`./scripts/e2e verify` executa Playwright completo, regressões SQL/Redis ignoradas
+por padrão e backup/restauração com comparação de histórico e privilégios runtime.
+Exige clientes PostgreSQL 18 (`psql`, `pg_dump`, `pg_restore`) e Python 3. O CI usa
+essa verificação e mantém a limpeza automática dos recursos exclusivos.
+
+`signup.spec.ts` valida cadastro, verificação de e-mail antes da senha, recuperação,
+link de uso único, senha antiga recusada, revogação com dois navegadores e falha
+fechada da API/readiness quando o Keycloak para. Mailpit usa a porta 8125 no E2E;
+configure ZB_E2E_MAILPIT_PORT para outro valor. O provedor usa ZB_E2E_KEYCLOAK_PORT.

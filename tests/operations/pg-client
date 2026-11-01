@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# CI-only wrapper: use the same PostgreSQL major as the disposable server.
+set -eu
+client_name=$(basename -- "$0")
+case "$client_name" in psql|pg_dump|pg_restore) ;; *) echo 'Use via symlink psql, pg_dump ou pg_restore.' >&2; exit 2;; esac
+exec docker run --rm --network host \
+  -e PGHOST -e PGPORT -e PGDATABASE -e PGUSER -e PGPASSWORD -e PGSSLMODE \
+  --mount "type=bind,source=$PWD,target=$PWD" \
+  --mount type=bind,source=/tmp,target=/tmp \
+  --workdir "$PWD" --entrypoint "$client_name" postgres:18-alpine "$@"

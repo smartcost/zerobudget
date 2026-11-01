@@ -1,32 +1,32 @@
 # obz-auth
 
-Núcleo de autenticação de usuários pelo Dex e autorização do ZeroBudget.
+Núcleo de autenticação de usuários pelo Keycloak e autorização do ZeroBudget.
 O crate é uma biblioteca independente de Axum, banco de dados e regras financeiras.
 
 ## Fluxo de login
 
-1. `DexAuth::discover` verifica a descoberta OIDC e carrega as chaves públicas do provedor configurado.
+1. `OidcAuth::discover` verifica a descoberta OIDC e carrega as chaves públicas do provedor configurado.
 2. `begin_login` cria a URL de autorização e uma `LoginAttempt` com state, nonce e PKCE S256 aleatórios.
-3. O adaptador HTTP guarda a tentativa **no servidor, vinculada à sessão do navegador**, por no máximo cinco minutos, e redireciona para a URL.
+3. O adaptador HTTP guarda a tentativa **no servidor, vinculada à sessão do navegador**, por no máximo quinze minutos, e redireciona para a URL.
 4. No callback, o adaptador remove a tentativa atomicamente e chama `finish_login` com state e code recebidos. Não deve selecionar tentativas apenas pelo state fornecido na URL: a sessão iniciadora também precisa corresponder.
 5. O crate troca o código com o verificador PKCE e valida assinatura RS256, issuer, audience, expiração, nonce, subject não vazio, emissão futura (tolerância de 60 segundos) e `at_hash`, quando presente.
 6. O resultado é uma `Identity` verificada, identificada pelo par `(issuer, subject)`. Access tokens e refresh tokens não são expostos.
 
 ```rust,no_run
-use obz_auth::{AuthConfig, AuthError, DexAuth, Identity, LoginAttempt};
+use obz_auth::{AuthConfig, AuthError, OidcAuth, Identity, LoginAttempt};
 
-async fn create_auth(secret: String) -> Result<DexAuth, AuthError> {
-    DexAuth::discover(AuthConfig::new(
-        "https://dex.example.com".into(),
-        "rust-app".into(),
+async fn create_auth(secret: String) -> Result<OidcAuth, AuthError> {
+    OidcAuth::discover(AuthConfig::new(
+        "https://login.example.com/realms/zerobudget".into(),
+        "zerobudget".into(),
         secret,
         "https://app.example.com/api/auth/callback".into(),
         false,
-    )?).await
+    )?.keycloak()).await
 }
 
 async fn callback(
-    auth: &DexAuth,
+    auth: &OidcAuth,
     browser_bound_attempt: LoginAttempt,
     returned_state: &str,
     code: String,
@@ -82,7 +82,7 @@ e logout por meio do contrato assíncrono `SessionStore`. `MemorySessionStore`
 e tentativas entre instâncias. A API não mantém um mutex global de armazenamento.
 
 Sessões têm duração absoluta máxima de 30 minutos, limitada pela expiração da
-identidade. Tentativas duram até cinco minutos e são consumidas uma única vez,
+identidade. Tentativas duram até quinze minutos e são consumidas uma única vez,
 inclusive entre réplicas. O Redis usa registros internos versionados, TTL,
 chaves derivadas por SHA-256, admissão atômica de capacidade e revogação de sessão.
 A reconstrução de identidade é restrita ao módulo de armazenamento confiável;
@@ -98,22 +98,21 @@ Mapeamento HTTP: falhas de autenticação → 401; `Forbidden` e CSRF → 403;
 indisponibilidade do provedor/armazenamento ou capacidade esgotada → 503. Erros não carregam
 códigos, tokens ou segredos.
 
-As chaves ficam em memória durante a vida de `DexAuth`. A API recria e substitui
-atomicamente a instância a cada cinco minutos para acompanhar a rotação do Dex.
+As chaves ficam em memória durante a vida de `OidcAuth`. A API recria e substitui
+atomicamente a instância a cada cinco minutos para acompanhar a rotação do Keycloak.
 Chaves desconhecidas são rejeitadas até a atualização. Consumidores independentes
 do crate precisam definir sua própria rotina de atualização. Ainda não há
 renovação de sessão ou logout federado. Identidades e permissões da API são
-persistidas no PostgreSQL separado do Dex, com consultas atuais por requisição.
+persistidas no PostgreSQL separado do Keycloak, com consultas atuais por requisição.
 
 ## Limites desta etapa
 
 Somente usuários, conforme o escopo inicial. Autenticação entre APIs fica para
-uma etapa posterior. Um client secret registrado no Dex identifica o cliente
+uma etapa posterior. Um client secret registrado no Keycloak identifica o cliente
 OIDC na troca do código; ele não constitui uma credencial para chamar a API.
-Access tokens do Dex são opacos e não devem ser tratados como JWTs da API.
+Access tokens do Keycloak ficam no servidor e não autenticam chamadas bearer da API.
 O ID token é validado exclusivamente no callback, e não aceito como bearer em
-rotas de negócio. A versão do Dex configurada no Compose não fornece o fluxo
-`client_credentials` convencional.
+rotas de negócio. O cliente configurado não habilita grants entre serviços.
 
 ## Verificação
 
@@ -127,11 +126,9 @@ Os testes cobrem PKCE, state, prazo do login, configuração TLS, tokens RS256
 assinados, issuer/audience/nonce incorretos, expiração, assinatura adulterada,
 chave desconhecida, substituição de access token e isolamento de proprietários.
 A chave privada em `tests/fixtures/test-only-rsa.pem` é pública e exclusiva dos
-testes. Os testes não dependem de Dex ou Docker; o login contra o Dex real ainda
-precisa de validação de integração.
+testes. A regressão E2E usa Keycloak real, cadastro e recuperação com Mailpit.
 
-Referências: [Dex OIDC](https://dexidp.io/docs/openid-connect/),
-[fluxos do Dex](https://dexidp.io/docs/configuration/oauth2/),
+Referências: [Keycloak](https://www.keycloak.org/docs/26.8.0/server_admin/),
 [biblioteca openidconnect](https://docs.rs/openidconnect/4.0.1/openidconnect/).
 
 
@@ -141,3 +138,7 @@ Este crate não depende de SQLx. Implementadores externos reconstituem `LocalUse
 com `from_persisted` somente após validar a identidade, o estado da conta e suas
 permissões atuais; `Identity::validate_current` verifica a validade temporal sem
 permitir a construção de identidades fora do fluxo OIDC verificado.
+
+Cadastro e recuperação: [configuração e política](../../docs/setup-keycloak.md).
+A API exige e-mail verificado e introspecção online em cada requisição autenticada;
+indisponibilidade do Keycloak retorna 503. Tokens ficam em registros privados versão 2.

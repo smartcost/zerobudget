@@ -3,7 +3,7 @@
   "info": {
     "title": "ZeroBudget API",
     "version": "0.1.0",
-    "description": "Contrato do backend implementado. Sessão do servidor após login OIDC no Dex; permissões explícitas e isolamento por proprietário. Valores financeiros em centavos. Rotas HTML e assets de /auth/session são auxiliares e não fazem parte deste contrato JSON."
+    "description": "Contrato do backend implementado. Sessão do servidor após login OIDC no Keycloak; permissões explícitas e isolamento por proprietário. Valores financeiros em centavos. Rotas HTML e assets de /auth/session são auxiliares e não fazem parte deste contrato JSON."
   },
   "servers": [
     {
@@ -45,7 +45,7 @@
         "security": [],
         "responses": {
           "204": {
-            "description": "API responde; não verifica prontidão de Redis, Dex ou PostgreSQL."
+            "description": "API responde; não verifica prontidão de Redis, Keycloak ou PostgreSQL."
           }
         }
       }
@@ -91,7 +91,8 @@
           "503": {
             "$ref": "#/components/responses/503"
           }
-        }
+        },
+        "description": "Sessão local, introspecção ativa no Keycloak (issuer, subject, client_id e exp) e conta local habilitada. Token do provedor fica no servidor; falha do Keycloak retorna 503, sessão inativa retorna 401."
       }
     },
     "/api/auth/logout": {
@@ -137,20 +138,20 @@
             "$ref": "#/components/parameters/Origin"
           }
         ],
-        "description": "Exige sessão e CSRF; não encerra SSO no Dex. Não depende da disponibilidade do PostgreSQL."
+        "description": "Exige sessão e CSRF; não encerra SSO no Keycloak. Não depende da disponibilidade do PostgreSQL."
       }
     },
     "/api/auth/login": {
       "get": {
         "operationId": "beginLogin",
-        "summary": "Iniciar login no navegador pelo Dex",
+        "summary": "Iniciar login no navegador pelo Keycloak",
         "tags": [
           "Autenticação"
         ],
         "security": [],
         "responses": {
           "303": {
-            "description": "Redireciona ao Dex e define cookie temporário de login. Continuar no mesmo navegador.",
+            "description": "Redireciona ao Keycloak e define cookie temporário de login. Continuar no mesmo navegador.",
             "headers": {
               "Location": {
                 "schema": {
@@ -171,7 +172,8 @@
           "503": {
             "$ref": "#/components/responses/503"
           }
-        }
+        },
+        "description": "Tentativa por até 15 minutos, com PKCE S256, state e nonce. Callback exige e-mail verificado. Access token permanece no armazenamento privado para introspecção online; não é credencial bearer da API."
       }
     },
     "/api/auth/callback": {
@@ -2282,6 +2284,836 @@
           }
         ]
       }
+    },
+    "/api/cycles/{cycle_id}/reallocations": {
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "reallocateEnvelopes",
+        "summary": "reallocateEnvelopes",
+        "tags": [
+          "Planejamento"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:write. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "201": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reallocation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateReallocation"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "listReallocations",
+        "summary": "listReallocations",
+        "tags": [
+          "Planejamento"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:read. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "200": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Reallocation"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/cycles/{cycle_id}/next": {
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "createNextCycle",
+        "summary": "createNextCycle",
+        "tags": [
+          "Planejamento"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:write. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "201": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Cycle"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateNextCycle"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/cycles/{cycle_id}/summary": {
+      "parameters": [
+        {
+          "name": "cycle_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getCycleSummary",
+        "summary": "getCycleSummary",
+        "tags": [
+          "Planejamento"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:read. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "200": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CycleSummary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        }
+      }
+    },
+    "/api/movements/{movement_id}/reverse": {
+      "parameters": [
+        {
+          "name": "movement_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "correctMovement",
+        "summary": "correctMovement",
+        "tags": [
+          "Finanças"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:write. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "201": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Correction"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCorrection"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/cards/{card_id}/opening-debts": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "createOpeningDebts",
+        "summary": "createOpeningDebts",
+        "tags": [
+          "Finanças"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:write. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "201": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOpeningDebt"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "listOpeningDebts",
+        "summary": "listOpeningDebts",
+        "tags": [
+          "Finanças"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:read. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "200": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CreditEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/cards/{card_id}/credits": {
+      "parameters": [
+        {
+          "name": "card_id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "createCardCredits",
+        "summary": "createCardCredits",
+        "tags": [
+          "Finanças"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:write. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "201": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreditEntry"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCardCredit"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "listCardCredits",
+        "summary": "listCardCredits",
+        "tags": [
+          "Finanças"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:read. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "200": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CreditEntry"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          }
+        ]
+      }
+    },
+    "/api/overview": {
+      "parameters": [],
+      "get": {
+        "operationId": "getFinancialOverview",
+        "summary": "getFinancialOverview",
+        "tags": [
+          "Finanças"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige budget:read. Proprietário determinado pela sessão. Mutações exigem CSRF. request_id identifica a operação: replay idêntico retorna o original; reutilização divergente retorna 409.",
+        "responses": {
+          "200": {
+            "description": "Sucesso",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/400"
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "404": {
+            "$ref": "#/components/responses/404"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "readiness",
+        "summary": "Prontidão de PostgreSQL, sessões e Keycloak",
+        "responses": {
+          "204": {
+            "description": "Pronto: PostgreSQL, armazenamento de sessões e endpoint JWKS do Keycloak disponíveis."
+          },
+          "503": {
+            "description": "Dependência indisponível"
+          }
+        }
+      }
+    },
+    "/api/auth/signup": {
+      "get": {
+        "operationId": "startSignup",
+        "summary": "Cadastrar usuário com confirmação de e-mail no Keycloak",
+        "tags": [
+          "Autenticação"
+        ],
+        "security": [],
+        "responses": {
+          "303": {
+            "description": "Redireciona ao Keycloak e define cookie temporário de login. Continuar no mesmo navegador.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "description": "Fluxo no navegador, com tentativa vinculada a cookie por até 15 minutos. O backend não recebe senha nem e-mail. Cadastro exige confirmação de e-mail antes de definir senha e não concede permissões financeiras. Recuperação usa link temporário de uso único; troca de senha revoga demais sessões. Seguir redirecionamentos no mesmo navegador."
+      }
+    },
+    "/api/auth/recover": {
+      "get": {
+        "operationId": "startPasswordRecovery",
+        "summary": "Recuperar senha pelo Keycloak",
+        "tags": [
+          "Autenticação"
+        ],
+        "security": [],
+        "responses": {
+          "303": {
+            "description": "Redireciona ao Keycloak e define cookie temporário de login. Continuar no mesmo navegador.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              },
+              "Set-Cookie": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/500"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "description": "Fluxo no navegador, com tentativa vinculada a cookie por até 15 minutos. O backend não recebe senha nem e-mail. Cadastro exige confirmação de e-mail antes de definir senha e não concede permissões financeiras. Recuperação usa link temporário de uso único; troca de senha revoga demais sessões. Seguir redirecionamentos no mesmo navegador."
+      }
     }
   },
   "components": {
@@ -2420,6 +3252,18 @@
               "closed"
             ],
             "description": "Planejamento editável; ativo exige saldo zero e congela os envelopes; fechado é definitivo e somente leitura. Renda zero pode ser ativada sem envelopes."
+          },
+          "carried_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "source_cycle_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
           }
         },
         "required": [
@@ -2430,7 +3274,9 @@
           "allocated_cents",
           "available_cents",
           "currency",
-          "status"
+          "status",
+          "carried_cents",
+          "source_cycle_id"
         ],
         "additionalProperties": false
       },
@@ -2551,12 +3397,18 @@
           "invoice_id": {
             "type": "string",
             "format": "uuid"
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
           }
         },
         "required": [
           "description",
           "occurred_on",
-          "amount_cents"
+          "amount_cents",
+          "request_id"
         ],
         "additionalProperties": false,
         "oneOf": [
@@ -2747,12 +3599,18 @@
             "minimum": 1,
             "maximum": 9223372036854775807,
             "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
           }
         },
         "required": [
           "description",
           "occurred_on",
-          "amount_cents"
+          "amount_cents",
+          "request_id"
         ],
         "additionalProperties": false
       },
@@ -2783,6 +3641,11 @@
             "minimum": 1,
             "maximum": 9223372036854775807,
             "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
           }
         },
         "required": [
@@ -2790,7 +3653,8 @@
           "to_account_id",
           "description",
           "occurred_on",
-          "amount_cents"
+          "amount_cents",
+          "request_id"
         ],
         "additionalProperties": false
       },
@@ -2808,7 +3672,8 @@
               "transfer",
               "expense",
               "expense_reversal",
-              "card_payment"
+              "card_payment",
+              "correction"
             ]
           },
           "from_account_id": {
@@ -2847,6 +3712,18 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "adjustment_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "posted",
+              "reversed"
+            ]
           }
         },
         "required": [
@@ -2858,7 +3735,9 @@
           "description",
           "occurred_on",
           "amount_cents",
-          "card_payment_id"
+          "card_payment_id",
+          "adjustment_id",
+          "status"
         ],
         "additionalProperties": false
       },
@@ -2876,7 +3755,8 @@
               "transfer",
               "expense",
               "expense_reversal",
-              "card_payment"
+              "card_payment",
+              "correction"
             ]
           },
           "from_account_id": {
@@ -2919,6 +3799,18 @@
             "type": "string",
             "format": "uuid",
             "nullable": true
+          },
+          "adjustment_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "posted",
+              "reversed"
+            ]
           }
         },
         "required": [
@@ -2931,7 +3823,9 @@
           "occurred_on",
           "amount_cents",
           "delta_cents",
-          "card_payment_id"
+          "card_payment_id",
+          "adjustment_id",
+          "status"
         ],
         "additionalProperties": false
       },
@@ -2977,6 +3871,13 @@
             "enum": [
               "BRL"
             ]
+          },
+          "credit_balance_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
           }
         },
         "required": [
@@ -2986,7 +3887,8 @@
           "credit_limit_cents",
           "outstanding_cents",
           "available_credit_cents",
-          "currency"
+          "currency",
+          "credit_balance_cents"
         ],
         "additionalProperties": false
       },
@@ -3068,6 +3970,27 @@
               "closed",
               "paid"
             ]
+          },
+          "opening_debt_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "credits_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "credit_balance_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
           }
         },
         "required": [
@@ -3079,7 +4002,10 @@
           "purchases_cents",
           "paid_cents",
           "outstanding_cents",
-          "status"
+          "status",
+          "opening_debt_cents",
+          "credits_cents",
+          "credit_balance_cents"
         ],
         "additionalProperties": false
       },
@@ -3133,7 +4059,7 @@
           "request_id": {
             "type": "string",
             "format": "uuid",
-            "description": "UUID não nulo e único por pagamento. Repetição idêntica retorna a resposta original sem novo débito; dados diferentes com o mesmo ID retornam 409."
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
           }
         },
         "required": [
@@ -3176,6 +4102,13 @@
             "minimum": 1,
             "maximum": 9223372036854775807,
             "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "posted",
+              "reversed"
+            ]
           }
         },
         "required": [
@@ -3184,7 +4117,8 @@
           "account_id",
           "description",
           "occurred_on",
-          "amount_cents"
+          "amount_cents",
+          "status"
         ],
         "additionalProperties": false
       },
@@ -3239,6 +4173,496 @@
           "status"
         ],
         "additionalProperties": false
+      },
+      "CreateReallocation": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+          },
+          "from_envelope_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "to_envelope_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "request_id",
+          "from_envelope_id",
+          "to_envelope_id",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "Reallocation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "cycle_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "from_envelope_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "to_envelope_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "id",
+          "cycle_id",
+          "from_envelope_id",
+          "to_envelope_id",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "CreateNextCycle": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date"
+          },
+          "new_income_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "empty",
+              "copy",
+              "carry_remaining"
+            ]
+          }
+        },
+        "required": [
+          "request_id",
+          "period_start",
+          "period_end",
+          "new_income_cents",
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      "SummaryEnvelope": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "allocated_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "spent_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "remaining_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "allocated_cents",
+          "spent_cents",
+          "remaining_cents"
+        ],
+        "additionalProperties": false
+      },
+      "CycleSummary": {
+        "type": "object",
+        "properties": {
+          "cycle": {
+            "$ref": "#/components/schemas/Cycle"
+          },
+          "spent_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "remaining_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "received_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": -9223372036854775807,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "projected_income_gap_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "envelopes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SummaryEnvelope"
+            }
+          }
+        },
+        "required": [
+          "cycle",
+          "spent_cents",
+          "remaining_cents",
+          "received_cents",
+          "projected_income_gap_cents",
+          "envelopes"
+        ],
+        "additionalProperties": false
+      },
+      "CreateCorrection": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "request_id",
+          "description",
+          "occurred_on"
+        ],
+        "additionalProperties": false
+      },
+      "Correction": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "movement_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "id",
+          "movement_id",
+          "description",
+          "occurred_on"
+        ],
+        "additionalProperties": false
+      },
+      "CreateOpeningDebt": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "request_id",
+          "invoice_id",
+          "description",
+          "occurred_on",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "CreateCardCredit": {
+        "type": "object",
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "UUID não nulo por intenção; preserve em retries. Dados divergentes com a mesma chave retornam 409."
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expense_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "opening_debt_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          }
+        },
+        "required": [
+          "request_id",
+          "invoice_id",
+          "description",
+          "occurred_on"
+        ],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "expense_id"
+            ],
+            "properties": {
+              "expense_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "opening_debt_id": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            }
+          },
+          {
+            "required": [
+              "opening_debt_id"
+            ],
+            "properties": {
+              "opening_debt_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "expense_id": {
+                "type": "string",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "CreditEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "card_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expense_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "opening_debt_id": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "occurred_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "amount_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          }
+        },
+        "required": [
+          "id",
+          "card_id",
+          "invoice_id",
+          "expense_id",
+          "opening_debt_id",
+          "description",
+          "occurred_on",
+          "amount_cents"
+        ],
+        "additionalProperties": false
+      },
+      "Overview": {
+        "type": "object",
+        "properties": {
+          "cash_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "card_debt_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "card_credit_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "active_budget_remaining_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "funding_gap_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "uncommitted_cash_cents": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "maximum": 9223372036854775807,
+            "description": "Centavos inteiros não negativos. Para aritmética em clientes JavaScript, limite-se a Number.MAX_SAFE_INTEGER ou utilize um parser de inteiros de 64 bits."
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "BRL"
+            ]
+          }
+        },
+        "required": [
+          "cash_cents",
+          "card_debt_cents",
+          "card_credit_cents",
+          "active_budget_remaining_cents",
+          "funding_gap_cents",
+          "uncommitted_cash_cents",
+          "currency"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -3246,7 +4670,7 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "zb_session",
-        "description": "Cookie HttpOnly local, obtido após callback do Dex. Em HTTPS o nome é __Host-zb_session; nunca use bearer do Dex nas rotas de negócio."
+        "description": "Cookie HttpOnly local, obtido após callback do Keycloak. Em HTTPS o nome é __Host-zb_session; nunca use bearer do Keycloak nas rotas de negócio."
       },
       "SecureSession": {
         "type": "apiKey",

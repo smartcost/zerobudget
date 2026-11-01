@@ -23,7 +23,7 @@ pub(crate) fn sql_error(error: sqlx::Error) -> CycleError {
         Some("ZB003") => CycleError::InsufficientFunds,
         Some("ZB004") => CycleError::Invalid,
         Some("ZB005") => CycleError::AccountInsufficientFunds,
-        Some("ZB006") => CycleError::BalanceOverflow,
+        Some("ZB006" | "22003") => CycleError::BalanceOverflow,
         Some("ZC001") => CycleError::CreditLimit,
         Some("ZC002") => CycleError::InvoiceClosed,
         _ => CycleError::Unavailable,

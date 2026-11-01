@@ -164,7 +164,7 @@ impl EnvelopeRepository for PostgresEnvelopeRepository {
         self.bounded(async {
             let mut tx=self.transaction(owner).await?;
             Self::parent(&mut tx,owner,cycle).await?;
-            let rows=sqlx::query("SELECT e.id,e.cycle_id,e.name,e.allocated_cents,(SELECT COALESCE(sum(x.amount_cents),0)::bigint FROM budgeting.expenses x WHERE x.envelope_id=e.id AND x.cycle_id=e.cycle_id AND x.owner_id=e.owner_id AND NOT EXISTS(SELECT 1 FROM budgeting.expense_reversals r WHERE r.expense_id=x.id)) AS spent_cents FROM budgeting.envelopes e WHERE e.owner_id=$1 AND e.cycle_id=$2 ORDER BY e.id LIMIT $3 OFFSET $4").bind(owner).bind(cycle).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
+            let rows=sqlx::query("SELECT id,cycle_id,name,allocated_cents,spent_cents FROM budgeting.envelope_balances WHERE owner_id=$1 AND cycle_id=$2 ORDER BY id LIMIT $3 OFFSET $4").bind(owner).bind(cycle).bind(i64::from(limit)).bind(i64::from(offset)).fetch_all(&mut *tx).await?;
             let records=rows.into_iter().map(decode).collect::<Result<Vec<_>,_>>()?;
             tx.commit().await?; Ok(records)
         }).await

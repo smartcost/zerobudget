@@ -1,10 +1,7 @@
 use std::time::Duration;
 
 use openidconnect::{
-    core::{
-        CoreAuthenticationFlow, CoreClient, CoreIdTokenVerifier, CoreProviderMetadata,
-        CoreTokenResponse,
-    },
+    core::{CoreAuthenticationFlow, CoreClient, CoreIdTokenVerifier, CoreTokenResponse},
     reqwest, AccessTokenHash, AuthorizationCode, ClientId, ClientSecret, CsrfToken, IssuerUrl,
     Nonce, OAuth2TokenResponse, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
     TokenResponse,
@@ -34,9 +31,16 @@ pub struct AuthConfig {
     client_secret: ClientSecret,
     redirect: RedirectUrl,
     allow_loopback_http: bool,
+    keycloak: bool,
 }
 
 impl AuthConfig {
+    /// Enforce verified email and online upstream session validation.
+    pub fn keycloak(mut self) -> Self {
+        self.keycloak = true;
+        self
+    }
+
     /// HTTPS is mandatory unless HTTP on literal loopback is explicitly enabled.
     pub fn new(
         issuer: String,
@@ -61,6 +65,7 @@ impl AuthConfig {
             client_secret: ClientSecret::new(client_secret),
             redirect,
             allow_loopback_http,
+            keycloak: false,
         })
     }
 }
@@ -84,6 +89,7 @@ pub struct Identity {
     issuer: String,
     subject: String,
     expires_at: i64,
+    pub(crate) access_token: Option<openidconnect::AccessToken>,
 }
 
 impl Identity {
@@ -117,6 +123,7 @@ impl Identity {
             issuer,
             subject,
             expires_at,
+            access_token: None,
         })
     }
 
@@ -131,6 +138,7 @@ impl Identity {
             issuer: issuer.into(),
             subject: subject.into(),
             expires_at: i64::MAX,
+            access_token: None,
         }
     }
 }
@@ -182,22 +190,42 @@ impl LoginAttempt {
     }
 }
 
-pub struct DexAuth {
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+struct ProviderExtras {
+    introspection_endpoint: Option<String>,
+}
+impl openidconnect::AdditionalProviderMetadata for ProviderExtras {}
+type ProviderMetadata = openidconnect::ProviderMetadata<
+    ProviderExtras,
+    openidconnect::core::CoreAuthDisplay,
+    openidconnect::core::CoreClientAuthMethod,
+    openidconnect::core::CoreClaimName,
+    openidconnect::core::CoreClaimType,
+    openidconnect::core::CoreGrantType,
+    openidconnect::core::CoreJweContentEncryptionAlgorithm,
+    openidconnect::core::CoreJweKeyManagementAlgorithm,
+    openidconnect::core::CoreJsonWebKey,
+    openidconnect::core::CoreResponseMode,
+    openidconnect::core::CoreResponseType,
+    openidconnect::core::CoreSubjectIdentifierType,
+>;
+
+pub struct OidcAuth {
     config: AuthConfig,
-    metadata: CoreProviderMetadata,
+    metadata: ProviderMetadata,
     http: reqwest::Client,
 }
 
-impl DexAuth {
+impl OidcAuth {
     /// Discovery loads signing keys. Recreate the client periodically to pick up
-    /// Dex key rotation; unknown keys fail closed until metadata is refreshed.
+    /// provider key rotation; unknown keys fail closed until metadata is refreshed.
     pub async fn discover(config: AuthConfig) -> Result<Self, AuthError> {
         let http = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(10))
             .build()
             .map_err(|_| AuthError::Configuration)?;
-        let metadata = CoreProviderMetadata::discover_async(config.issuer.clone(), &http)
+        let metadata = ProviderMetadata::discover_async(config.issuer.clone(), &http)
             .await
             .map_err(|_| AuthError::Provider)?;
         validate_url(
@@ -207,6 +235,19 @@ impl DexAuth {
         let token_endpoint = metadata.token_endpoint().ok_or(AuthError::Provider)?;
         validate_url(token_endpoint.url(), config.allow_loopback_http)?;
         validate_url(metadata.jwks_uri().url(), config.allow_loopback_http)?;
+        if config.keycloak {
+            let endpoint = metadata
+                .additional_metadata()
+                .introspection_endpoint
+                .as_ref()
+                .ok_or(AuthError::Provider)?;
+            let endpoint =
+                openidconnect::url::Url::parse(endpoint).map_err(|_| AuthError::Provider)?;
+            validate_url(&endpoint, config.allow_loopback_http)?;
+            if endpoint.origin() != config.issuer.url().origin() {
+                return Err(AuthError::Configuration);
+            }
+        }
         Ok(Self {
             config,
             metadata,
@@ -214,6 +255,102 @@ impl DexAuth {
         })
     }
 
+    pub async fn probe(&self) -> Result<(), AuthError> {
+        if !self.config.keycloak {
+            return Ok(());
+        }
+        let response = self
+            .http
+            .get(self.metadata.jwks_uri().as_str())
+            .send()
+            .await
+            .map_err(|_| AuthError::Provider)?;
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            Err(AuthError::Provider)
+        }
+    }
+    /// Tokens remain server-side. Inactive upstream sessions fail closed.
+    pub async fn validate_session(&self, identity: &Identity) -> Result<(), AuthError> {
+        if identity.issuer() != self.config.issuer.as_str() {
+            return Err(AuthError::InvalidToken);
+        }
+        if !self.config.keycloak {
+            return Ok(());
+        }
+        #[derive(serde::Deserialize)]
+        struct Introspection {
+            active: bool,
+            sub: Option<String>,
+            iss: Option<String>,
+            client_id: Option<String>,
+            exp: Option<i64>,
+        }
+        let token = identity
+            .access_token
+            .as_ref()
+            .ok_or(AuthError::InvalidToken)?;
+        let endpoint = self
+            .metadata
+            .additional_metadata()
+            .introspection_endpoint
+            .as_ref()
+            .ok_or(AuthError::Provider)?;
+        let response = self
+            .http
+            .post(endpoint)
+            .basic_auth(
+                self.config.client_id.as_str(),
+                Some(self.config.client_secret.secret()),
+            )
+            .form(&[
+                ("token", token.secret().as_str()),
+                ("token_type_hint", "access_token"),
+            ])
+            .send()
+            .await
+            .map_err(|_| AuthError::Provider)?;
+        if !response.status().is_success() {
+            return Err(AuthError::Provider);
+        }
+        let bytes = response.bytes().await.map_err(|_| AuthError::Provider)?;
+        if bytes.len() > 16384 {
+            return Err(AuthError::Provider);
+        }
+        let record: Introspection =
+            serde_json::from_slice(&bytes).map_err(|_| AuthError::Provider)?;
+        if !record.active
+            || record.sub.as_deref() != Some(identity.subject())
+            || record.iss.as_deref() != Some(identity.issuer())
+            || record.client_id.as_deref() != Some(self.config.client_id.as_str())
+            || record
+                .exp
+                .is_none_or(|exp| exp <= crate::session::unix_now() as i64)
+        {
+            return Err(AuthError::InvalidToken);
+        }
+        Ok(())
+    }
+    pub fn begin_signup(&self) -> (openidconnect::url::Url, LoginAttempt) {
+        let (mut url, attempt) = self.begin_login();
+        url.query_pairs_mut().append_pair("prompt", "create");
+        (url, attempt)
+    }
+    pub fn begin_recovery(&self) -> Result<(openidconnect::url::Url, LoginAttempt), AuthError> {
+        if !self.config.keycloak {
+            return Err(AuthError::Configuration);
+        }
+        let (mut url, attempt) = self.begin_login();
+        let path = url
+            .path()
+            .strip_suffix("/auth")
+            .ok_or(AuthError::Configuration)?
+            .to_owned()
+            + "/forgot-credentials";
+        url.set_path(&path);
+        Ok((url, attempt))
+    }
     pub fn begin_login(&self) -> (openidconnect::url::Url, LoginAttempt) {
         let client = CoreClient::from_provider_metadata(
             self.metadata.clone(),
@@ -238,7 +375,7 @@ impl DexAuth {
                 state,
                 nonce,
                 verifier,
-                expires_at: crate::session::unix_now().saturating_add(300),
+                expires_at: crate::session::unix_now().saturating_add(crate::session::LOGIN_TTL),
             },
         )
     }
@@ -272,7 +409,19 @@ impl DexAuth {
                 _ => AuthError::Exchange,
             })?;
         let verifier = client.id_token_verifier();
-        verify_response(&response, &verifier, &attempt.nonce)
+        let mut identity = verify_response(&response, &verifier, &attempt.nonce)?;
+        if self.config.keycloak {
+            let claims = response
+                .id_token()
+                .ok_or(AuthError::InvalidToken)?
+                .claims(&verifier, &attempt.nonce)
+                .map_err(|_| AuthError::InvalidToken)?;
+            if claims.email_verified() != Some(true) {
+                return Err(AuthError::Forbidden);
+            }
+        }
+        identity.access_token = Some(response.access_token().clone());
+        Ok(identity)
     }
 }
 
@@ -315,6 +464,7 @@ fn verify_response(
         issuer: claims.issuer().as_str().into(),
         subject: claims.subject().as_str().into(),
         expires_at: claims.expiration().timestamp(),
+        access_token: None,
     })
 }
 
@@ -349,7 +499,7 @@ mod tests {
             state: CsrfToken::new("expected".into()),
             nonce: Nonce::new_random(),
             verifier,
-            expires_at: crate::session::unix_now().saturating_add(300),
+            expires_at: crate::session::unix_now().saturating_add(crate::session::LOGIN_TTL),
         };
         assert!(attempt.validate("expected").is_ok());
         assert!(attempt.validate("wrong").is_err());
@@ -518,6 +668,7 @@ mod tests {
             issuer: "https://dex.example".into(),
             subject: "alice".into(),
             expires_at: 1,
+            access_token: None,
         };
         let mut policy = crate::Policy::default();
         policy.grant(
@@ -536,22 +687,20 @@ mod tests {
         use openidconnect::core::{
             CoreJwsSigningAlgorithm, CoreResponseType, CoreSubjectIdentifierType,
         };
-        use openidconnect::{
-            AuthUrl, EmptyAdditionalProviderMetadata, JsonWebKeySetUrl, ResponseTypes, TokenUrl,
-        };
-        let metadata = CoreProviderMetadata::new(
+        use openidconnect::{AuthUrl, JsonWebKeySetUrl, ResponseTypes, TokenUrl};
+        let metadata = ProviderMetadata::new(
             IssuerUrl::new("https://dex.example".into()).unwrap(),
             AuthUrl::new("https://dex.example/auth".into()).unwrap(),
             JsonWebKeySetUrl::new("https://dex.example/keys".into()).unwrap(),
             vec![ResponseTypes::new(vec![CoreResponseType::Code])],
             vec![CoreSubjectIdentifierType::Public],
             vec![CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256],
-            EmptyAdditionalProviderMetadata {},
+            ProviderExtras::default(),
         )
         .set_token_endpoint(Some(
             TokenUrl::new("https://dex.example/token".into()).unwrap(),
         ));
-        let auth = DexAuth {
+        let auth = OidcAuth {
             config: AuthConfig::new(
                 "https://dex.example".into(),
                 "rust-app".into(),

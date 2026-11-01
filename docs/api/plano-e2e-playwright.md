@@ -8,7 +8,7 @@ requer a configuração inicial descrita no guia.
 ## Resultado esperado
 
 O desenvolvedor executa um comando para preparar e testar a API. O fluxo inicia
-um ambiente isolado, aplica migrações, autentica usuários pelo Dex real, configura
+um ambiente isolado, aplica migrações, autentica usuários pelo Keycloak real, configura
 permissões no banco de teste, executa os cenários e apresenta os resultados.
 Não há cópia de cookies, CSRF, códigos de callback ou IDs.
 
@@ -20,7 +20,7 @@ A presença de um agente ou de uma conversa não é pré-requisito da regressão
 
 | Ferramenta | Papel |
 | --- | --- |
-| Playwright MCP | Navegação assistida pelo agente, inspeção do login Dex e reprodução de falhas |
+| Playwright MCP | Navegação assistida pelo agente, inspeção do login Keycloak e reprodução de falhas |
 | Playwright Test | Fixtures de autenticação, requisições HTTP autenticadas, asserções e relatórios |
 | Testes Rust existentes | Domínio, contratos, PostgreSQL/RLS, Redis e falhas controladas com OIDC temporário |
 | OpenAPI | Referência única do contrato HTTP implementado |
@@ -38,7 +38,7 @@ fabricada, desativação de CSRF ou concessão de permissões no login de produ�
   disponíveis. Nesta conversa, ferramentas Playwright MCP ainda não estão expostas.
 - Fixar a versão utilizada e documentar a configuração local, sem segredos.
 - Usar contexto de navegador isolado para os usuários de teste.
-- Observar os passos reais: `/api/auth/login`, formulário do Dex, consentimento,
+- Observar os passos reais: `/api/auth/login`, formulário do Keycloak, consentimento,
   callback e chegada a `/auth/session`. Registrar seletores semânticos estáveis.
 - Verificar a sessão e uma requisição autenticada com o contexto compartilhado.
 - Converter o fluxo aprovado em fixtures versionadas da suíte.
@@ -53,15 +53,15 @@ a regressão fica coberta pelos arquivos Playwright Test.
 - Cada execução recebe nome de projeto próprio, banco, Redis e dados descartáveis.
 - Manter a API e o navegador inicialmente no host. Isso preserva o mesmo issuer
   acessível ao backend e ao navegador e respeita as exceções HTTP apenas em loopback.
-- Proposta de portas: API 3100, Dex 5656, PostgreSQL da aplicação 5540 e Redis 6480.
+- Proposta de portas: API 3100, Keycloak 8180, PostgreSQL da aplicação 5540 e Redis 6480.
   Validar disponibilidade; nunca parar serviços alheios para liberar portas.
-- Gerar configuração Dex E2E com issuer `http://localhost:5656` e callback
+- Gerar configuração Keycloak E2E com issuer `http://localhost:8180` e callback
   `http://localhost:3100/api/auth/callback`, consistentes com a origem da API.
-- Incluir usuários estáticos exclusivos do Dex E2E. O conector atual mockPassword
+- Incluir usuários estáticos exclusivos do Keycloak E2E. O conector atual mockPassword
   com um único admin não basta para testar isolamento entre proprietários.
 - Aplicar as mesmas migrações e privilégios runtime da aplicação pelo processo
   administrativo existente. A API continua sem credencial administrativa.
-- Aguardar PostgreSQL, Redis, descoberta/JWKS do Dex e inicialização da API.
+- Aguardar PostgreSQL, Redis, descoberta/JWKS do Keycloak e inicialização da API.
   `/health` sozinho não estabelece prontidão de todas as dependências.
 - Iniciar o binário da API no ambiente de testes e registrar apenas seus processos
   e recursos, para encerrar exatamente os que foram criados pela execução.
@@ -71,7 +71,7 @@ ou permissões do ambiente de desenvolvimento.
 
 ## 3. Fixtures de identidade e permissões
 
-- Criar uma fixture de usuário que abre contexto limpo, efetua login pelo Dex,
+- Criar uma fixture de usuário que abre contexto limpo, efetua login pelo Keycloak,
   recebe a sessão e consulta `/api/auth/me`.
 - Preparar usuários de teste: dois proprietários com leitura/escrita, um sem
   permissões e perfis adicionais de somente leitura e somente escrita.
@@ -104,7 +104,7 @@ montar manualmente cookies ou repetir lógica de autenticação.
 | Concorrência | Requisições simultâneas disputam o saldo; soma final nunca supera a renda |
 | Contrato | Status, tipos de conteúdo e schemas das respostas, incluindo erros em texto |
 
-A suíte E2E verifica o sistema integrado com Dex, API, Redis e PostgreSQL reais.
+A suíte E2E verifica o sistema integrado com Keycloak, API, Redis e PostgreSQL reais.
 Os testes Rust permanecem responsáveis por limites detalhados, estados impossíveis
 no navegador e injeção controlada de falhas. A implementação não duplicará toda a
 suíte unitária em Playwright.
@@ -175,7 +175,7 @@ tests/e2e/
     concurrency.spec.ts
 config/e2e/
   compose.yaml
-  dex-config.template.yaml
+  keycloak/realm.json
 scripts/e2e
 docs/api/e2e.md
 ```

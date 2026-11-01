@@ -21,6 +21,7 @@ pub(crate) struct SessionRecord {
     pub issuer: String,
     pub subject: String,
     pub identity_expires_at: i64,
+    pub access_token: Option<String>,
     pub csrf: String,
     pub expires_at: u64,
 }
@@ -55,10 +56,15 @@ impl LoginRecord {
 impl SessionRecord {
     pub fn from_session(session: &Session) -> Self {
         Self {
-            version: 1,
+            version: 2,
             issuer: session.identity.issuer().into(),
             subject: session.identity.subject().into(),
             identity_expires_at: session.identity.expires_at(),
+            access_token: session
+                .identity
+                .access_token
+                .as_ref()
+                .map(|t| t.secret().clone()),
             csrf: session.csrf.clone(),
             expires_at: session.expires_at,
         }
@@ -66,7 +72,7 @@ impl SessionRecord {
     pub fn decode(value: &str) -> Result<Session, SessionError> {
         let record: Self = decode(value)?;
         let now = unix_now();
-        if record.version != 1
+        if record.version != 2
             || record.expires_at <= now
             || record.expires_at > now.saturating_add(SESSION_TTL)
             || record.identity_expires_at <= 0
@@ -75,12 +81,18 @@ impl SessionRecord {
         {
             return Err(SessionError::Invalid);
         }
+        if record
+            .access_token
+            .as_ref()
+            .is_some_and(|t| t.is_empty() || t.len() > 8192)
+        {
+            return Err(SessionError::Invalid);
+        }
+        let mut identity =
+            Identity::from_stored(record.issuer, record.subject, record.identity_expires_at)?;
+        identity.access_token = record.access_token.map(openidconnect::AccessToken::new);
         Ok(Session {
-            identity: Identity::from_stored(
-                record.issuer,
-                record.subject,
-                record.identity_expires_at,
-            )?,
+            identity,
             csrf: record.csrf,
             expires_at: record.expires_at,
         })

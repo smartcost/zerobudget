@@ -68,6 +68,7 @@ struct Create {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Movement {
+    request_id: Uuid,
     description: String,
     occurred_on: String,
     amount_cents: i64,
@@ -84,6 +85,7 @@ impl Movement {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Transfer {
+    request_id: Uuid,
     from_account_id: Uuid,
     to_account_id: Uuid,
     description: String,
@@ -128,6 +130,8 @@ struct MovementResponse {
     to_account_id: Option<Uuid>,
     expense_id: Option<Uuid>,
     card_payment_id: Option<Uuid>,
+    adjustment_id: Option<Uuid>,
+    status: &'static str,
     description: String,
     occurred_on: chrono::NaiveDate,
     amount_cents: i64,
@@ -141,6 +145,8 @@ impl From<BankMovement> for MovementResponse {
             to_account_id: m.to_account_id,
             expense_id: m.expense_id,
             card_payment_id: m.card_payment_id,
+            adjustment_id: m.adjustment_id,
+            status: if m.reversed { "reversed" } else { "posted" },
             description: m.movement.description().into(),
             occurred_on: chrono::NaiveDate::from_num_days_from_ce_opt(m.movement.day())
                 .expect("validated movement date"),
@@ -209,7 +215,7 @@ async fn receipt(
         StatusCode::CREATED,
         Json(
             service(&state)?
-                .receipt(&auth.user, id, body.input()?)
+                .post_with_id(&auth.user, body.request_id, None, id, body.input()?)
                 .await?
                 .into(),
         ),
@@ -230,7 +236,13 @@ async fn transfer(
         StatusCode::CREATED,
         Json(
             service(&state)?
-                .transfer(&auth.user, body.from_account_id, body.to_account_id, input)
+                .post_with_id(
+                    &auth.user,
+                    body.request_id,
+                    Some(body.from_account_id),
+                    body.to_account_id,
+                    input,
+                )
                 .await?
                 .into(),
         ),

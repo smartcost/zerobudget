@@ -85,8 +85,22 @@ impl ExpenseService {
         envelope: Uuid,
         input: ExpenseInput,
     ) -> Result<BudgetExpense, CycleError> {
+        self.create_with_id(user, cycle, envelope, Uuid::new_v4(), input)
+            .await
+    }
+    pub async fn create_with_id(
+        &self,
+        user: &LocalUser,
+        cycle: Uuid,
+        envelope: Uuid,
+        request_id: Uuid,
+        input: ExpenseInput,
+    ) -> Result<BudgetExpense, CycleError> {
         user.require(Permission::WriteBudget)
             .map_err(|_| CycleError::Forbidden)?;
+        if request_id.is_nil() {
+            return Err(CycleError::Invalid);
+        }
         let expense = Expense::new(
             &input.description,
             input.date.num_days_from_ce(),
@@ -98,7 +112,7 @@ impl ExpenseService {
                 user.id(),
                 cycle,
                 envelope,
-                Uuid::new_v4(),
+                request_id,
                 FundedExpense {
                     funding: input.funding,
                     expense,

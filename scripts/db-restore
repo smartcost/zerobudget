@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+if [[ $# != 2 ]]; then echo 'Uso: scripts/db-restore arquivo.dump nome-do-banco-vazio' >&2; exit 2; fi
+: "${PGDATABASE:?Configure PGDATABASE}" "${PGUSER:?Configure PGUSER}"
+if [[ "$PGDATABASE" != "$2" ]]; then echo 'Banco de destino não corresponde à confirmação.' >&2; exit 2; fi
+# pg_restore runs in one transaction; don't run application writers until migration/grants finish.
+count=$(psql -XAt --set=ON_ERROR_STOP=1 --command="SELECT count(*) FROM pg_namespace WHERE nspname NOT IN ('public','information_schema') AND nspname NOT LIKE 'pg_%'")
+public_count=$(psql -XAt --set=ON_ERROR_STOP=1 --command="SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace")
+if [[ "$count" != 0 || "$public_count" != 0 ]]; then echo 'Restauração exige banco vazio.' >&2; exit 2; fi
+restore_sql=$(mktemp)
+trap 'rm -f -- "$restore_sql"' EXIT
+pg_restore --exit-on-error --no-owner --no-acl --file="$restore_sql" "$1"
+cat >> "$restore_sql" <<'SQL'
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA auth,budgeting,banking FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA auth,budgeting,banking FROM PUBLIC;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA auth,budgeting,banking FROM PUBLIC;
+SQL
+psql -X --single-transaction --set=ON_ERROR_STOP=1 --file="$restore_sql" > /dev/null
+echo 'Restauração concluída; execute zb-migrate para validar histórico e reaplicar privilégios.'

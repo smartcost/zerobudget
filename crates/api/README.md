@@ -1,8 +1,8 @@
 # ZeroBudget API
 
 Integração HTTP do `obz-auth` com Axum. O login usa Authorization Code com
-PKCE no Dex; a aplicação mantém uma sessão própria no servidor. ID tokens e
-access tokens do Dex não são aceitos como bearer em rotas de negócio.
+PKCE no Keycloak; a aplicação mantém uma sessão própria no servidor. ID tokens e
+access tokens do Keycloak não são aceitos como bearer em rotas de negócio.
 
 ## Desenvolvimento local
 
@@ -24,7 +24,7 @@ cargo run -p obz-api
 ```
 
 Abra **http://localhost:3000/api/auth/login** no navegador e entre com
-`admin` / `password`. Após autorizar no Dex, a API recebe o callback e
+`admin@zerobudget.local` / `Local-Password-123!`. Após autenticar no Keycloak, a API recebe o callback e
 redireciona para `/auth/session`, uma página HTML com a identidade e o botão Sair.
 O endpoint `/api/auth/me` retorna identidade, UUID local (`user_id`), permissões
 atuais e token CSRF em JSON. O primeiro login não concede permissões financeiras.
@@ -37,7 +37,9 @@ cookie e invalida a vinculação da tentativa de login.
 | --- | --- | --- |
 | GET | `/auth/session` | Página HTML para consultar sessão e sair |
 | GET | `/health` | 204, sem autenticação; verifica apenas que a API responde |
-| GET | `/api/auth/login` | Cria tentativa de cinco minutos e redireciona para Dex |
+| GET | `/api/auth/login` | Cria tentativa de quinze minutos e redireciona para Keycloak |
+| GET | `/api/auth/signup` | Cadastro no Keycloak com confirmação de e-mail |
+| GET | `/api/auth/recover` | Recuperação de senha por e-mail |
 | GET | `/api/auth/callback` | Consome a tentativa e cria uma nova sessão após validar o ID token |
 | GET | `/api/auth/me` | Identidade verificada, expiração Unix e `csrf_token`; 401 sem sessão |
 | POST | `/api/auth/logout` | Exige sessão e `X-CSRF-Token`; revoga a sessão e remove o cookie |
@@ -51,8 +53,8 @@ O visualizador de JSON do Firefox pode aplicar sua própria CSP e bloquear
 desative a CSP ou outras proteções do navegador.
 
 Sem o header CSRF, logout retorna 403 e mantém a sessão ativa.
-Logout encerra a sessão do ZeroBudget; ele não encerra a sessão do Dex ou do
-provedor upstream. Um novo login pode aproveitar o SSO existente no Dex.
+Logout encerra a sessão do ZeroBudget; ele não encerra a sessão do Keycloak ou do
+provedor upstream. Um novo login pode aproveitar o SSO existente no Keycloak.
 
 ## Configuração
 
@@ -60,9 +62,9 @@ provedor upstream. Um novo login pode aproveitar o SSO existente no Dex.
 | --- | --- | --- |
 | `API_BIND` | `127.0.0.1:3000` | Endereço do listener |
 | `API_PUBLIC_URL` | `http://localhost:3000` | Origem pública, sem caminho; determina callback e cookies seguros |
-| `DEX_ISSUER` | `http://localhost:5556` | Issuer OIDC confiável |
-| `DEX_CLIENT_ID` | `rust-app` | Cliente registrado no Dex |
-| `DEX_CLIENT_SECRET` | obrigatório | Segredo do cliente; não é registrado em logs |
+| `OIDC_ISSUER` | `http://localhost:8080/realms/zerobudget` | Issuer OIDC confiável |
+| `OIDC_CLIENT_ID` | `zerobudget` | Cliente registrado no Keycloak |
+| `OIDC_CLIENT_SECRET` | obrigatório | Segredo do cliente; não é registrado em logs |
 | `AUTH_ALLOW_LOCAL_HTTP` | `false` | Exceção explícita de desenvolvimento para HTTP em loopback |
 | `AUTH_SESSION_BACKEND` | obrigatório | `redis` ou `memory`; memória exige modo local explícito |
 | `AUTH_REDIS_URL` | obrigatório para Redis | Local: `redis://127.0.0.1:6380/0`; produção: `rediss://` autenticado |
@@ -78,7 +80,7 @@ A aplicação lê variáveis do ambiente; não carrega `.env` automaticamente.
 O exemplo acima exporta apenas a configuração local de `.env.example`; em
 produção, forneça os valores pelo ambiente de implantação.
 O callback é sempre `${API_PUBLIC_URL}/api/auth/callback` e precisa estar
-registrado no Dex. Em produção, configure origem pública e issuer HTTPS,
+registrado no Keycloak. Em produção, configure origem pública e issuer HTTPS,
 forneça o segredo externamente e mantenha `AUTH_ALLOW_LOCAL_HTTP=false`.
 Terminação TLS pode ocorrer no proxy; a origem pública configurada determina
 `Secure`, sem confiar em headers encaminhados enviados pelo cliente.
@@ -102,7 +104,7 @@ Terminação TLS pode ocorrer no proxy; a origem pública configurada determina
   que alteram dados, exige CSRF; quando `Origin` é enviado, exige a origem pública
   configurada. Logout aplica as mesmas verificações. CORS não está habilitado.
 - A identidade local e as permissões ficam no PostgreSQL da aplicação, separado
-  do Dex. Cada requisição protegida consulta o estado atual, aplicando bloqueios
+  do Keycloak. Cada requisição protegida consulta o estado atual, aplicando bloqueios
   e revogações mesmo com uma sessão Redis válida.
 - Permissões financeiras continuam negadas por padrão. Novos handlers devem
   usar `Authenticated::require` ou `require_owner` e conferir propriedade a
@@ -246,3 +248,7 @@ em vez de `account_id`; pagamentos de fatura fechada não criam nova despesa no
 envelope. A migração 0007 mantém os históricos anteriores intactos. Pagamentos
 exigem `request_id` para repetição idempotente. A regressão é
 `./scripts/e2e test credit`.
+
+O fluxo de cadastro e recuperação está documentado em [setup-keycloak](../../docs/setup-keycloak.md).
+Cada requisição autenticada faz introspecção online: sessão inativa retorna 401;
+Keycloak indisponível retorna 503. Não há fallback.

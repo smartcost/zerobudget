@@ -7,7 +7,7 @@ use axum::{
     Json, Router,
 };
 use obz_auth::{
-    AuthError, DexAuth, Identity, IdentityError, IdentityRepository, LocalUser, Permission,
+    AuthError, Identity, IdentityError, IdentityRepository, LocalUser, OidcAuth, Permission,
     SessionError, SessionStore,
 };
 use serde::Serialize;
@@ -16,12 +16,15 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
+    database: Option<obz_infrastructure::Database>,
+    pub(crate) planning: Option<obz_cycle::PlanningService>,
+    pub(crate) finance: Option<obz_banking::FinanceService>,
     pub(crate) credit: Option<obz_banking::CreditService>,
     pub(crate) banking: Option<obz_banking::BankingService>,
     pub(crate) expenses: Option<obz_cycle::ExpenseService>,
     pub(crate) envelopes: Option<obz_cycle::EnvelopeService>,
     pub(crate) cycles: Option<obz_cycle::CycleService>,
-    auth: Arc<RwLock<Arc<DexAuth>>>,
+    auth: Arc<RwLock<Arc<OidcAuth>>>,
     store: Arc<dyn SessionStore>,
     users: Arc<dyn IdentityRepository>,
     origin: Arc<str>,
@@ -29,13 +32,16 @@ pub struct AppState {
 }
 impl AppState {
     pub fn new(
-        auth: DexAuth,
+        auth: OidcAuth,
         origin: String,
         secure_cookies: bool,
         store: Arc<dyn SessionStore>,
         users: Arc<dyn IdentityRepository>,
     ) -> Self {
         Self {
+            database: None,
+            planning: None,
+            finance: None,
             cycles: None,
             envelopes: None,
             expenses: None,
@@ -47,6 +53,18 @@ impl AppState {
             origin: origin.into(),
             secure: secure_cookies,
         }
+    }
+    pub fn with_database(mut self, database: obz_infrastructure::Database) -> Self {
+        self.database = Some(database);
+        self
+    }
+    pub fn with_planning(mut self, service: obz_cycle::PlanningService) -> Self {
+        self.planning = Some(service);
+        self
+    }
+    pub fn with_finance(mut self, service: obz_banking::FinanceService) -> Self {
+        self.finance = Some(service);
+        self
     }
     pub fn with_credit(mut self, credit: obz_banking::CreditService) -> Self {
         self.credit = Some(credit);
@@ -68,7 +86,7 @@ impl AppState {
         self.cycles = Some(cycles);
         self
     }
-    pub async fn replace_auth(&self, auth: DexAuth) {
+    pub async fn replace_auth(&self, auth: OidcAuth) {
         *self.auth.write().await = Arc::new(auth);
     }
     pub async fn cleanup(&self) -> Result<(), SessionError> {
@@ -105,8 +123,11 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/session", get(session_page))
         .route("/auth/session.js", get(session_script))
         .route("/auth/session.css", get(session_styles))
+        .route("/ready", get(ready))
         .route("/health", get(|| async { StatusCode::NO_CONTENT }))
         .route("/api/auth/login", get(login))
+        .route("/api/auth/signup", get(signup))
+        .route("/api/auth/recover", get(recover))
         .route("/api/auth/callback", get(callback))
         .route("/api/auth/me", get(me))
         .route("/api/auth/logout", post(logout))
@@ -115,8 +136,11 @@ pub fn router(state: AppState) -> Router {
         .merge(crate::http_expenses::routes())
         .merge(crate::http_banking::routes())
         .merge(crate::http_credit::routes())
+        .merge(crate::http_planning::routes())
+        .merge(crate::http_finance::routes())
         .with_state(state)
         .layer(middleware::from_fn(security_headers))
+        .layer(middleware::from_fn(access_log))
 }
 
 async fn session_page() -> Response {
@@ -248,16 +272,33 @@ fn cookie(headers: &HeaderMap, name: &str) -> Result<Option<String>, ApiError> {
     Ok(value)
 }
 
+async fn signup(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
+    begin_auth(state, headers, "signup").await
+}
+async fn recover(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
+    begin_auth(state, headers, "recover").await
+}
 async fn login(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
+    begin_auth(state, headers, "login").await
+}
+async fn begin_auth(
+    state: AppState,
+    headers: HeaderMap,
+    action: &str,
+) -> Result<Response, ApiError> {
     let previous = cookie(&headers, state.login_cookie())?;
     let auth = state.auth.read().await.clone();
-    let (url, attempt) = auth.begin_login();
+    let (url, attempt) = match action {
+        "signup" => auth.begin_signup(),
+        "recover" => auth.begin_recovery()?,
+        _ => auth.begin_login(),
+    };
     let id = state
         .store
         .start_login(attempt, previous.as_deref())
         .await?;
     let mut response = Redirect::to(url.as_str()).into_response();
-    state.set_cookie(&mut response, state.login_cookie(), &id, 300);
+    state.set_cookie(&mut response, state.login_cookie(), &id, 900);
     Ok(response)
 }
 
@@ -353,6 +394,8 @@ impl FromRequestParts<AppState> for Authenticated {
             verify_origin(&parts.headers, state)?;
             session.verify_csrf(csrf_header(&parts.headers)?)?;
         }
+        let auth = state.auth.read().await.clone();
+        auth.validate_session(session.identity()).await?;
         let user = state.users.find(session.identity()).await?;
         Ok(Self {
             identity: session.identity().clone(),
@@ -408,6 +451,40 @@ async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Res
     let mut response = StatusCode::NO_CONTENT.into_response();
     state.set_cookie(&mut response, state.session_cookie(), "", 0);
     Ok(response)
+}
+
+async fn ready(State(state): State<AppState>) -> StatusCode {
+    let Some(db) = state.database.as_ref() else {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    };
+    let auth = state.auth.read().await.clone();
+    let (a, b, c) = tokio::join!(db.probe(), state.store.probe(), auth.probe());
+    if a.is_ok() && b.is_ok() && c.is_ok() {
+        StatusCode::NO_CONTENT
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    }
+}
+async fn access_log(request: Request, next: Next) -> Response {
+    let start = std::time::Instant::now();
+    let id = uuid::Uuid::new_v4().to_string();
+    let method = request.method().to_string();
+    let route = request
+        .extensions()
+        .get::<axum::extract::MatchedPath>()
+        .map(|p| p.as_str())
+        .unwrap_or("unmatched")
+        .to_string();
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(
+        "x-request-id",
+        HeaderValue::from_str(&id).expect("generated UUID"),
+    );
+    eprintln!(
+        "{}",
+        serde_json::json!({"event":"http_request","request_id":id,"method":method,"route":route,"status":response.status().as_u16(),"duration_ms":start.elapsed().as_millis()})
+    );
+    response
 }
 
 #[cfg(test)]
@@ -543,7 +620,7 @@ mod tests {
             let task = tokio::spawn(async move {
                 axum::serve(listener, app).await.unwrap();
             });
-            let auth = DexAuth::discover(
+            let auth = OidcAuth::discover(
                 obz_auth::AuthConfig::new(
                     provider.issuer.clone(),
                     "rust-app".into(),

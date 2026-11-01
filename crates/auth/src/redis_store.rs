@@ -205,6 +205,21 @@ impl RedisSessionStore {
 }
 #[async_trait]
 impl SessionStore for RedisSessionStore {
+    async fn probe(&self) -> Result<(), SessionError> {
+        let mut connection = self.connection.clone();
+        let pong: String = tokio::time::timeout(
+            self.timeout,
+            redis::cmd("PING").query_async(&mut connection),
+        )
+        .await
+        .map_err(|_| SessionError::Unavailable)?
+        .map_err(|_| SessionError::Unavailable)?;
+        if pong == "PONG" {
+            Ok(())
+        } else {
+            Err(SessionError::Unavailable)
+        }
+    }
     async fn start_login(
         &self,
         attempt: LoginAttempt,

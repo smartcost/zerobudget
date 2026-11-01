@@ -21,12 +21,9 @@ try {
     arguments: {
       code: `async (page) => {
     await page.goto(${JSON.stringify(state.origin + "/api/auth/login")});
-    const connector=page.getByRole('link',{name:/Log in with Email/i});
-    if(await connector.isVisible())await connector.click();
-    await page.locator('input[name="login"]').fill('alice@e2e.invalid');
-    await page.locator('input[name="password"]').fill('e2e-password');
-    await page.getByRole('button',{name:/^Log\s*in$/i}).click();
-    await page.getByRole('button',{name:/Grant Access|Approve/i}).click();
+    await page.locator('input[name="username"]').fill('alice@e2e.invalid');
+    await page.locator('input[name="password"]').fill('E2e-Password-123!');
+    await page.locator('input[name="login"],button[type="submit"]').first().click();
     await page.waitForURL(${JSON.stringify(state.origin + "/auth/session")});
     const response=await page.context().request.get(${JSON.stringify(state.origin + "/api/auth/me")});
     if(response.status()!==200)throw new Error('Sessão HTTP não foi compartilhada');
@@ -72,7 +69,7 @@ try {
     );
   }
   console.log(
-    `Playwright MCP: ${tools.length} ferramentas, login Dex real e cookie compartilhado confirmados.`,
+    `Playwright MCP: ${tools.length} ferramentas, login Keycloak real e cookie compartilhado confirmados.`,
   );
 } finally {
   await client.close();

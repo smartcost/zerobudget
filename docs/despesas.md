@@ -46,7 +46,7 @@ Todas as rotas ficam sob
 Corpo de criação (substitua a data por uma dentro do ciclo selecionado):
 
 ```json
-{"account_id":"UUID_DA_CONTA","description":"Alimentação","occurred_on":"2026-10-30","amount_cents":12000}
+{"request_id":"UUID_DA_OPERACAO","account_id":"UUID_DA_CONTA","description":"Alimentação","occurred_on":"2026-10-30","amount_cents":12000}
 ```
 
 A resposta contém `id`, `cycle_id`, `envelope_id`, `description`, `occurred_on`,
@@ -103,7 +103,7 @@ schema no início. Nenhum direito financeiro é concedido a usuários automatica
 ./scripts/e2e test expenses
 ```
 
-A regressão completa é `./scripts/e2e test`, com Dex real e serviços descartáveis.
+A regressão completa é `./scripts/e2e test`, com Keycloak real e serviços descartáveis.
 `cargo test --workspace` cobre domínio e casos de uso. Os testes SQL ignorados
 usam bancos temporários e as variáveis descritas em [AGENTS.md](../AGENTS.md);
 cobrem RLS, imutabilidade, aritmética de 64 bits e ordens controladas do lock.
@@ -121,3 +121,6 @@ Para compra no cartão, `account_id=null` e `invoice_id` identifica a fatura na
 resposta. O estorno recupera limite e saldo do envelope, sem creditar conta. Novo
 estorno exige fatura aberta e ciclo ativo; repetição de um estorno já confirmado
 continua idempotente enquanto o ciclo estiver ativo.
+
+Criação exige request_id para replay idempotente. Realocação e transporte explícito
+passaram a existir: [planejamento e correções](planejamento-e-correcoes.md).

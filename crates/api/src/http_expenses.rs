@@ -23,6 +23,7 @@ pub(crate) fn routes() -> Router<AppState> {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Create {
+    request_id: Uuid,
     #[serde(default, deserialize_with = "optional_uuid")]
     account_id: Option<Uuid>,
     #[serde(default, deserialize_with = "optional_uuid")]
@@ -82,10 +83,11 @@ async fn create(
 ) -> Result<(StatusCode, Json<ExpenseResponse>), ApiError> {
     auth.require(obz_auth::Permission::WriteBudget)?;
     let record = service(&state)?
-        .create(
+        .create_with_id(
             &auth.user,
             cycle,
             envelope,
+            body.request_id,
             obz_cycle::ExpenseInput {
                 funding: match (body.account_id, body.invoice_id) {
                     (Some(id), None) => obz_cycle::ExpenseFunding::Account(id),

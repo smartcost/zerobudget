@@ -44,18 +44,9 @@ export const test = base.extend<{
         contexts.push(context);
         const page = await context.newPage();
         await page.goto(current.origin + "/api/auth/login");
-        const connector = page.getByRole("link", {
-          name: /Log in with Email/i,
-        });
-        if (await connector.isVisible()) await connector.click();
-        await page
-          .locator('input[name="login"]')
-          .fill(`${account}@e2e.invalid`);
-        await page.locator('input[name="password"]').fill("e2e-password");
-        await page.getByRole("button", { name: /^Log\s*in$/i }).click();
-        await page
-          .getByRole("button", { name: /Grant Access|Approve/i })
-          .click();
+        await page.locator('input[name="username"]').fill(`${account}@e2e.invalid`);
+        await page.locator('input[name="password"]').fill("E2e-Password-123!");
+        await page.locator('input[name="login"],button[type="submit"]').first().click();
         await page.waitForURL(current.origin + "/auth/session");
         let me = await body<Me>(
           await context.request.get("/api/auth/me"),

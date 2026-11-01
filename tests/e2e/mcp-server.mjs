@@ -17,7 +17,7 @@ export function mcpArgs(state) {
     "--console-level",
     "error",
     "--allowed-origins",
-    `${state.origin};${state.issuer}`,
+    `${state.origin};${new URL(state.issuer).origin};${state.mailpit}`,
     "--output-dir",
     path.join(state.dir, "mcp-private"),
   ];

@@ -26,13 +26,15 @@ struct Create {
     income_cents: i64,
 }
 #[derive(Serialize)]
-struct CycleResponse {
+pub(crate) struct CycleResponse {
     id: Uuid,
     period_start: NaiveDate,
     period_end: NaiveDate,
     income_cents: i64,
     allocated_cents: i64,
     available_cents: i64,
+    carried_cents: i64,
+    source_cycle_id: Option<Uuid>,
     currency: &'static str,
     status: &'static str,
 }
@@ -45,6 +47,8 @@ impl From<BudgetCycle> for CycleResponse {
             income_cents: c.income_cents,
             allocated_cents: c.allocated_cents,
             available_cents: c.available_cents,
+            carried_cents: c.carried_cents,
+            source_cycle_id: c.source_cycle_id,
             currency: "BRL",
             status: c.status.as_str(),
         }
@@ -85,6 +89,10 @@ impl From<CycleError> for ApiError {
             ),
             CycleError::InvoiceClosed => Self(StatusCode::CONFLICT, "invoice is closed"),
             CycleError::CreditLimit => Self(StatusCode::CONFLICT, "credit limit exceeded"),
+            CycleError::OperationConflict => Self(
+                StatusCode::CONFLICT,
+                "operation identifier reused with different data",
+            ),
             CycleError::Unavailable => Self(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "budget storage unavailable",

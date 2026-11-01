@@ -52,7 +52,7 @@ cargo run -p obz-api
 
 A API lê o ambiente; não carrega `.env` automaticamente. Não interrompa processos
 alheios para liberar portas. Se alterar a origem, ajuste também o callback
-registrado no Dex e `API_PUBLIC_URL`.
+registrado no Keycloak e `API_PUBLIC_URL`.
 
 ## Importar no Postman
 
@@ -72,14 +72,14 @@ A coleção tem três pastas:
 Não execute a coleção inteira: isso mistura alterações manuais com o roteiro e
 encerra a sessão ao final. Para validação, execute apenas a pasta 02.
 
-## Login Dex e cookie de sessão
+## Login Keycloak e cookie de sessão
 
-O backend usa Authorization Code + PKCE com Dex e uma sessão opaca própria no
+O backend usa Authorization Code + PKCE com Keycloak e uma sessão opaca própria no
 servidor. **Não configure bearer nem o assistente OAuth 2.0 do Postman**: tokens
-emitidos pelo Dex não autenticam as rotas de negócio da API.
+emitidos pelo Keycloak não autenticam as rotas de negócio da API.
 
-1. No navegador, abra `http://localhost:3000/auth/session` e entre pelo Dex.
-   No ambiente de desenvolvimento atual, o login local é `admin` / `password`.
+1. No navegador, abra `http://localhost:3000/auth/session` e entre pelo Keycloak.
+   No ambiente de desenvolvimento atual, o login local é `admin@zerobudget.local` / `Local-Password-123!`.
 2. Sincronize o cookie do navegador com o cookie jar do Postman usando
    [Interceptor ou proxy](https://learning.postman.com/docs/use/capturing-request-data/syncing-cookies).
    Restrinja a captura ao domínio local usado no teste. A disponibilidade de
@@ -115,7 +115,7 @@ O primeiro login não concede direitos financeiros. As operações exigem:
 | Listar/consultar ciclos, envelopes, despesas, contas e cartões | `budget:read` |
 | Criar/ativar/fechar ciclos, alterar envelopes, registrar/estornar despesas | `budget:write` |
 
-Use o UUID local retornado por **Consultar sessão**, não o subject do Dex. Se
+Use o UUID local retornado por **Consultar sessão**, não o subject do Keycloak. Se
 necessário, o operador pode conceder os direitos para o usuário local de teste:
 
 ```sh
@@ -209,7 +209,7 @@ a execução em Newman/CLI não foi validada nesta entrega.
 
 Envie o logout da pasta 03 somente quando desejar sair. HTTP 204 revoga também a
 sessão sincronizada do navegador; cookies de outras sessões não são revogados.
-Isso não encerra o SSO do Dex. O teste limpa CSRF e ID local do ambiente.
+Isso não encerra o SSO do Keycloak. O teste limpa CSRF e ID local do ambiente.
 
 ## Validação da entrega
 
@@ -220,7 +220,7 @@ as variáveis do ambiente; os valores de sessão no arquivo exportado estão vaz
 A pasta 02 foi executada no runtime oficial `postman-runtime` contra um servidor
 HTTP simulado: 33 verificações no fluxo de sucesso, com saldo restaurado. Também
 foram verificadas limpeza após erro HTTP e remoção de uma criação 201 inesperada
-em teste negativo. Isso valida os scripts e o encadeamento; o login Dex e a
+em teste negativo. Isso valida os scripts e o encadeamento; o login Keycloak e a
 importação pela interface desktop dependem da sessão local e não foram executados
 nessa validação. Os testes de negócio da API continuam na suíte Rust/PostgreSQL.
 
@@ -310,3 +310,12 @@ reutilizar o UUID com valor/data/conta diferentes retorna 409.
 ```
 
 Regras e limites: [cartões e faturas](../cartoes.md).
+
+## Planejamento e correções
+
+Consulte [as regras e exemplos do MVP](../planejamento-e-correcoes.md). Despesas,
+recebimentos e transferências agora exigem request_id UUID não nulo. Preserve-o em
+retries; uma nova operação precisa de outra chave. Os exemplos Postman guardam
+uma chave por requisição no ambiente: limpe a variável operation_* ou mvp_request_*
+correspondente para iniciar outro lançamento. A pasta Backend MVP contém os novos
+endpoints. O caminho recomendado de regressão continua sendo Playwright.
