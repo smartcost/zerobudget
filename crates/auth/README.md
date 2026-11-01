@@ -141,4 +141,12 @@ permitir a construção de identidades fora do fluxo OIDC verificado.
 
 Cadastro e recuperação: [configuração e política](../../docs/setup-keycloak.md).
 A API exige e-mail verificado e introspecção online em cada requisição autenticada;
-indisponibilidade do Keycloak retorna 503. Tokens ficam em registros privados versão 2.
+indisponibilidade do Keycloak retorna 503. Tokens ficam em registros privados versão 3.
+
+## Onboarding financeiro
+
+OnboardingService valida identidade atual e e-mail verificado e usa o contrato
+OnboardingRepository. Conclusão é explícita, idempotente e auditada; GET e login
+continuam sem concessões. Decisões administrativas e revogações são preservadas.
+Veja [o contrato e as regras](../../docs/onboarding.md). Sessões usam registros
+privados versão 3 para preservar email_verified validado no OIDC.

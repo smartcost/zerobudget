@@ -2344,6 +2344,46 @@
           }
         }
       ]
+    },
+    {
+      "name": "05 - Onboarding financeiro",
+      "item": [
+        {
+          "name": "Consultar estado e próximo passo",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/onboarding",
+            "description": "Sessão com e-mail verificado. Sem efeito de concessão. setup é null sem budget:read."
+          }
+        },
+        {
+          "name": "Concluir habilitação inicial",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/onboarding",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-CSRF-Token",
+                "value": "{{csrf_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Concede budget:read/write uma única vez ao próprio usuário elegível. Retentativa não restaura revogações. Conta já administrada retorna 409."
+          }
+        }
+      ]
     }
   ]
 }

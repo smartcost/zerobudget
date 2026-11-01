@@ -21,3 +21,9 @@ mod storage_contract;
 pub use identity::{IdentityError, IdentityRepository, LocalUser, MemoryIdentityRepository};
 #[cfg(test)]
 mod identity_tests;
+
+mod onboarding;
+pub use onboarding::{
+    NextStep, OnboardingError, OnboardingRepository, OnboardingService, OnboardingState,
+    OnboardingStatus, SetupCycle, SetupCycleState, SetupProgress,
+};

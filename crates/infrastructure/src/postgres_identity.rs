@@ -62,6 +62,7 @@ impl PostgresIdentityRepository {
             let mut transaction = self.pool.begin().await?;
             for statement in [
                 format!("GRANT USAGE ON SCHEMA auth TO \"{role}\""),
+                format!("GRANT EXECUTE ON FUNCTION auth.budget_onboarding_state(uuid,text,text),auth.complete_budget_onboarding(uuid,text,text) TO \"{role}\""),
                 format!("GRANT SELECT ON auth.users, auth.permissions TO \"{role}\""),
                 format!("GRANT INSERT (id, issuer, subject, last_login_at), UPDATE (last_login_at) ON auth.users TO \"{role}\""),
             ] { sqlx::query(&statement).execute(&mut *transaction).await?; }

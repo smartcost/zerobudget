@@ -83,6 +83,11 @@ propostas de documentação como funcionalidades entregues.
   introspecção online em requisições autenticadas e falhe sem fallback. A imagem
   Keycloak inclui política obrigatória de revogação de outras sessões ao trocar senha.
 - Negue permissões financeiras por padrão. Login não concede direitos financeiros.
+  A habilitação inicial exige POST explícito de onboarding com e-mail verificado;
+  concede somente budget:read/write ao próprio usuário elegível, uma única vez,
+  com auditoria atômica. Preserve o marcador após revogação. Nunca restaure direitos
+  pelo login, por consultas ou por retries; decisões administrativas anteriores
+  tornam a conta inelegível ao onboarding automático.
   Consulte estado da conta e permissões atuais nas requisições protegidas.
 - O proprietário vem da identidade autenticada, nunca do corpo da requisição.
   Aplique autorização no caso de uso e isolamento também na persistência.

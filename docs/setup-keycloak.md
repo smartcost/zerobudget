@@ -40,8 +40,9 @@ de e-mail expira em 10 minutos. Se expirar, inicie o fluxo novamente. Recuperaç
 retorna mensagem genérica, inclusive para contas inexistentes. O link é de uso único.
 
 O primeiro login provisiona a identidade local e **não concede budget:read/write**.
-O operador concede acesso pelo procedimento existente de auth_admin. Uma política
-de onboarding financeiro automático não faz parte desta troca de provedor.
+A habilitação inicial agora é explícita por POST /api/onboarding, conforme o
+[guia de onboarding](onboarding.md). Decisões administrativas anteriores e
+revogações continuam sob controle do operador pelo auth_admin.
 
 O Compose mantém um PostgreSQL próprio para o Keycloak, separado do PostgreSQL
 da aplicação. Alterar realm.json não atualiza um realm que já existe: o import é
@@ -65,7 +66,7 @@ ambientes com dados que precisam ser preservados.
 - Issuer, subject, client_id, active e exp da introspecção devem corresponder à
   identidade e ao cliente. Resposta inválida/inativa resulta em 401; indisponibilidade
   resulta em 503. Não existe fallback de autenticação se o provedor falhar.
-- Sessões Redis usam versão 2; registros da versão anterior são recusados e exigem
+- Sessões Redis usam versão 3; registros das versões anteriores são recusados e exigem
   novo login. Sessão tem limite absoluto de 30 minutos e não é renovada automaticamente.
   Use TLS, ACL e proteção dos volumes/backups do Redis, pois ele contém credenciais.
 - `/ready` consulta banco, sessões e JWKS do Keycloak; falha em qualquer um retorna 503.

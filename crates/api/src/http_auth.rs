@@ -16,6 +16,7 @@ use tokio::sync::RwLock;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub(crate) onboarding: Option<obz_auth::OnboardingService>,
     database: Option<obz_infrastructure::Database>,
     pub(crate) planning: Option<obz_cycle::PlanningService>,
     pub(crate) finance: Option<obz_banking::FinanceService>,
@@ -39,6 +40,7 @@ impl AppState {
         users: Arc<dyn IdentityRepository>,
     ) -> Self {
         Self {
+            onboarding: None,
             database: None,
             planning: None,
             finance: None,
@@ -53,6 +55,10 @@ impl AppState {
             origin: origin.into(),
             secure: secure_cookies,
         }
+    }
+    pub fn with_onboarding(mut self, service: obz_auth::OnboardingService) -> Self {
+        self.onboarding = Some(service);
+        self
     }
     pub fn with_database(mut self, database: obz_infrastructure::Database) -> Self {
         self.database = Some(database);
@@ -138,6 +144,7 @@ pub fn router(state: AppState) -> Router {
         .merge(crate::http_credit::routes())
         .merge(crate::http_planning::routes())
         .merge(crate::http_finance::routes())
+        .merge(crate::http_onboarding::routes())
         .with_state(state)
         .layer(middleware::from_fn(security_headers))
         .layer(middleware::from_fn(access_log))
@@ -579,7 +586,8 @@ mod tests {
             vec![Audience::new("rust-app".into())],
             now + chrono::Duration::seconds(provider.lifetime),
             now,
-            StandardClaims::new(SubjectIdentifier::new("alice".into())),
+            StandardClaims::new(SubjectIdentifier::new("alice".into()))
+                .set_email_verified(Some(true)),
             EmptyAdditionalClaims {},
         )
         .set_nonce(Some(Nonce::new(nonce)));
@@ -1705,5 +1713,8 @@ mod tests {
     }
     mod envelope_tests {
         include!("envelope_tests.rs");
+    }
+    mod onboarding_tests {
+        include!("onboarding_tests.rs");
     }
 }

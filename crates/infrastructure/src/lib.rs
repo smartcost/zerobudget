@@ -25,3 +25,6 @@ pub use postgres_planning::PostgresPlanningRepository;
 
 mod postgres_finance;
 pub use postgres_finance::PostgresFinanceRepository;
+
+mod postgres_onboarding;
+pub use postgres_onboarding::PostgresOnboardingRepository;

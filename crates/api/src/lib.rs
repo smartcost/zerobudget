@@ -14,3 +14,5 @@ mod http_credit;
 
 mod http_finance;
 mod http_planning;
+
+mod http_onboarding;

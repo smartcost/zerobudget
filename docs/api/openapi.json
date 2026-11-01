@@ -3114,6 +3114,114 @@
         },
         "description": "Fluxo no navegador, com tentativa vinculada a cookie por até 15 minutos. O backend não recebe senha nem e-mail. Cadastro exige confirmação de e-mail antes de definir senha e não concede permissões financeiras. Recuperação usa link temporário de uso único; troca de senha revoga demais sessões. Seguir redirecionamentos no mesmo navegador."
       }
+    },
+    "/api/onboarding": {
+      "get": {
+        "operationId": "getOnboarding",
+        "summary": "Consultar estado inicial",
+        "tags": [
+          "Onboarding"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige sessão e e-mail verificado. Proprietário obtido da sessão. GET usa snapshot consistente; setup só é retornado com budget:read. POST exige CSRF e corpo {}. Concede apenas budget:read/write na primeira conclusão de conta sem decisões administrativas anteriores; repetições nunca reabilitam conta nem restauram direitos revogados. Login não concede direitos.",
+        "responses": {
+          "200": {
+            "description": "Estado atual do próprio usuário; consulta não concede nem restaura direitos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Onboarding"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        }
+      },
+      "post": {
+        "operationId": "completeOnboarding",
+        "summary": "Concluir onboarding financeiro uma única vez",
+        "tags": [
+          "Onboarding"
+        ],
+        "security": [
+          {
+            "LocalSession": []
+          },
+          {
+            "SecureSession": []
+          }
+        ],
+        "description": "Exige sessão e e-mail verificado. Proprietário obtido da sessão. GET usa snapshot consistente; setup só é retornado com budget:read. POST exige CSRF e corpo {}. Concede apenas budget:read/write na primeira conclusão de conta sem decisões administrativas anteriores; repetições nunca reabilitam conta nem restauram direitos revogados. Login não concede direitos.",
+        "responses": {
+          "200": {
+            "description": "Estado atual do próprio usuário; consulta não concede nem restaura direitos.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Onboarding"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/401"
+          },
+          "403": {
+            "$ref": "#/components/responses/403"
+          },
+          "409": {
+            "$ref": "#/components/responses/409"
+          },
+          "422": {
+            "$ref": "#/components/responses/422"
+          },
+          "503": {
+            "$ref": "#/components/responses/503"
+          }
+        },
+        "parameters": [
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteOnboarding"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4661,6 +4769,146 @@
           "funding_gap_cents",
           "uncommitted_cash_cents",
           "currency"
+        ],
+        "additionalProperties": false
+      },
+      "OnboardingSetupCycle": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "active",
+              "closed"
+            ]
+          },
+          "has_envelopes": {
+            "type": "boolean"
+          },
+          "has_unallocated_income": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "has_envelopes",
+          "has_unallocated_income"
+        ],
+        "additionalProperties": false
+      },
+      "OnboardingSetup": {
+        "type": "object",
+        "properties": {
+          "has_accounts": {
+            "type": "boolean"
+          },
+          "has_cycles": {
+            "type": "boolean"
+          },
+          "has_active_cycle": {
+            "type": "boolean"
+          },
+          "has_expenses": {
+            "type": "boolean"
+          },
+          "selected_cycle": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OnboardingSetupCycle"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "has_accounts",
+          "has_cycles",
+          "has_active_cycle",
+          "has_expenses",
+          "selected_cycle"
+        ],
+        "additionalProperties": false
+      },
+      "CompleteOnboarding": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "Onboarding": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "completed",
+              "managed"
+            ]
+          },
+          "completed_at": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "description": "Unix seconds; persists across retries and revocations."
+          },
+          "permissions": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "budget:read",
+                "budget:write"
+              ]
+            }
+          },
+          "setup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OnboardingSetup"
+              },
+              {
+                "type": "object",
+                "nullable": true,
+                "enum": [
+                  null
+                ]
+              }
+            ]
+          },
+          "next_step": {
+            "type": "string",
+            "enum": [
+              "complete_onboarding",
+              "contact_operator",
+              "create_account",
+              "create_cycle",
+              "allocate_income",
+              "activate_cycle",
+              "record_expense",
+              "ready"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "completed_at",
+          "permissions",
+          "setup",
+          "next_step"
         ],
         "additionalProperties": false
       }

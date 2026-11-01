@@ -3,7 +3,7 @@ import path from "node:path";
 import { state } from "./environment.js";
 import { body, type Cycle, type Envelope } from "./api-client.js";
 import type { Actor } from "./auth.js";
-export async function cycle(actor: Actor, income = 10000): Promise<Cycle> {
+export async function cycle(actor: Pick<Actor,"api">, income = 10000): Promise<Cycle> {
   // One worker; counter is persisted per isolated run so UI reruns cannot reuse periods.
   const filename = path.join(state().dir, "period-counter.json");
   const index = existsSync(filename)
@@ -23,7 +23,7 @@ export async function cycle(actor: Actor, income = 10000): Promise<Cycle> {
   );
 }
 export async function envelope(
-  actor: Actor,
+  actor: Pick<Actor,"api">,
   cycleId: string,
   name: string,
   amount: number,
@@ -37,7 +37,7 @@ export async function envelope(
     "Envelope",
   );
 }
-export async function totals(actor: Actor, id: string): Promise<Cycle> {
+export async function totals(actor: Pick<Actor,"api">, id: string): Promise<Cycle> {
   return body<Cycle>(
     await actor.api.send("GET", `/api/cycles/${id}`),
     200,
@@ -46,7 +46,7 @@ export async function totals(actor: Actor, id: string): Promise<Cycle> {
 }
 
 export async function account(
-  actor: Actor,
+  actor: Pick<Actor,"api">,
   opening = 100000,
   kind = "bank",
   opened = "0001-01-01",

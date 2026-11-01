@@ -319,3 +319,9 @@ retries; uma nova operação precisa de outra chave. Os exemplos Postman guardam
 uma chave por requisição no ambiente: limpe a variável operation_* ou mvp_request_*
 correspondente para iniciar outro lançamento. A pasta Backend MVP contém os novos
 endpoints. O caminho recomendado de regressão continua sendo Playwright.
+
+## Habilitação inicial e progresso
+
+O cadastro não concede direitos no login. Para a primeira habilitação, use
+`POST /api/onboarding` com `{}` e CSRF; a consulta usa `GET /api/onboarding`.
+Consulte [o guia](../onboarding.md) para elegibilidade, estados e revogações.

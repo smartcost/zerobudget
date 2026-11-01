@@ -252,3 +252,9 @@ exigem `request_id` para repetição idempotente. A regressão é
 O fluxo de cadastro e recuperação está documentado em [setup-keycloak](../../docs/setup-keycloak.md).
 Cada requisição autenticada faz introspecção online: sessão inativa retorna 401;
 Keycloak indisponível retorna 503. Não há fallback.
+
+## Onboarding
+
+GET /api/onboarding consulta estado e próximo passo. POST na mesma rota, com
+JSON `{}` e CSRF, habilita apenas o próprio usuário elegível após e-mail verificado.
+Não restaura direitos revogados. Veja [o guia](../../docs/onboarding.md).

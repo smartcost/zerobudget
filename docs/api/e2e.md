@@ -153,7 +153,7 @@ exemplo não é interpretado automaticamente por todos os aplicativos.
 
 ## Cobertura e contrato
 
-Os 55 cenários cobrem:
+Os 59 cenários cobrem:
 
 - login/callback/PKCE, cookies HttpOnly, sessão e logout;
 - ausência de sessão e bearer arbitrário recusado;
@@ -228,3 +228,7 @@ essa verificação e mantém a limpeza automática dos recursos exclusivos.
 link de uso único, senha antiga recusada, revogação com dois navegadores e falha
 fechada da API/readiness quando o Keycloak para. Mailpit usa a porta 8125 no E2E;
 configure ZB_E2E_MAILPIT_PORT para outro valor. O provedor usa ZB_E2E_KEYCLOAK_PORT.
+
+`onboarding.spec.ts` cobre a jornada de cadastro até a primeira despesa sem grant
+administrativo, retries concorrentes, revogação após novo login, bloqueio, decisões
+prévias, isolamento do progresso, CSRF e ciclo de renda zero.

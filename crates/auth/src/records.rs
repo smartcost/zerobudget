@@ -22,6 +22,7 @@ pub(crate) struct SessionRecord {
     pub subject: String,
     pub identity_expires_at: i64,
     pub access_token: Option<String>,
+    pub email_verified: bool,
     pub csrf: String,
     pub expires_at: u64,
 }
@@ -56,10 +57,11 @@ impl LoginRecord {
 impl SessionRecord {
     pub fn from_session(session: &Session) -> Self {
         Self {
-            version: 2,
+            version: 3,
             issuer: session.identity.issuer().into(),
             subject: session.identity.subject().into(),
             identity_expires_at: session.identity.expires_at(),
+            email_verified: session.identity.email_verified(),
             access_token: session
                 .identity
                 .access_token
@@ -72,7 +74,7 @@ impl SessionRecord {
     pub fn decode(value: &str) -> Result<Session, SessionError> {
         let record: Self = decode(value)?;
         let now = unix_now();
-        if record.version != 2
+        if record.version != 3
             || record.expires_at <= now
             || record.expires_at > now.saturating_add(SESSION_TTL)
             || record.identity_expires_at <= 0
@@ -90,6 +92,7 @@ impl SessionRecord {
         }
         let mut identity =
             Identity::from_stored(record.issuer, record.subject, record.identity_expires_at)?;
+        identity.email_verified = record.email_verified;
         identity.access_token = record.access_token.map(openidconnect::AccessToken::new);
         Ok(Session {
             identity,

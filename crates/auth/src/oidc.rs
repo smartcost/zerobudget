@@ -90,6 +90,7 @@ pub struct Identity {
     subject: String,
     expires_at: i64,
     pub(crate) access_token: Option<openidconnect::AccessToken>,
+    pub(crate) email_verified: bool,
 }
 
 impl Identity {
@@ -98,6 +99,9 @@ impl Identity {
         crate::identity::validate_identity(self)
     }
 
+    pub fn email_verified(&self) -> bool {
+        self.email_verified
+    }
     pub fn issuer(&self) -> &str {
         &self.issuer
     }
@@ -124,6 +128,7 @@ impl Identity {
             subject,
             expires_at,
             access_token: None,
+            email_verified: false,
         })
     }
 
@@ -139,6 +144,7 @@ impl Identity {
             subject: subject.into(),
             expires_at: i64::MAX,
             access_token: None,
+            email_verified: false,
         }
     }
 }
@@ -465,6 +471,7 @@ fn verify_response(
         subject: claims.subject().as_str().into(),
         expires_at: claims.expiration().timestamp(),
         access_token: None,
+        email_verified: claims.email_verified() == Some(true),
     })
 }
 
@@ -669,6 +676,7 @@ mod tests {
             subject: "alice".into(),
             expires_at: 1,
             access_token: None,
+            email_verified: false,
         };
         let mut policy = crate::Policy::default();
         policy.grant(

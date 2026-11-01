@@ -29,3 +29,5 @@ Cartões e faturas manuais: [compras, limite e pagamentos](docs/cartoes.md).
 - [Backend MVP: planejamento e correções](docs/planejamento-e-correcoes.md)
 - [Operação, acesso ao piloto e recuperação](docs/operacao.md)
 - [Checklist da entrega backend](docs/backend-mvp.md)
+
+- [Onboarding financeiro e estado inicial](docs/onboarding.md)

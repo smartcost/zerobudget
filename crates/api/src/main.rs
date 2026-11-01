@@ -20,6 +20,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     credit.check_schema().await?;
     let planning = obz_infrastructure::PostgresPlanningRepository::new(database.clone());
     let finance = obz_infrastructure::PostgresFinanceRepository::new(database.clone());
+    let onboarding = obz_infrastructure::PostgresOnboardingRepository::new(database.clone());
+    onboarding.check_schema().await?;
     let cycles = obz_infrastructure::PostgresCycleRepository::new(database.clone());
     cycles.check_schema().await?;
     let state = AppState::new(
@@ -29,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         store,
         Arc::new(users),
     )
+    .with_onboarding(obz_auth::OnboardingService::new(Arc::new(onboarding)))
     .with_database(database)
     .with_planning(obz_cycle::PlanningService::new(Arc::new(planning)))
     .with_finance(obz_banking::FinanceService::new(Arc::new(finance)))
